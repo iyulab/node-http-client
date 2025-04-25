@@ -1,75 +1,108 @@
-# @iyulab-http-client
+# @iyulab/http-client
 
-@iyulab/http-client는 HTTP 요청을 쉽게 처리할 수 있는 TypeScript 기반의 클라이언트 라이브러리입니다. 이 라이브러리는 다양한 HTTP 메서드를 지원하며, 요청을 취소하거나 파일 업로드 이벤트를 관리하는 기능을 제공합니다.
+브라우저에서 사용 가능한 HTTP 클라이언트 라이브러리입니다.  
+Fetch API와 XMLHttpRequest를 모두 활용하여 일반 요청, 파일 업로드/다운로드, 서버 스트림 응답까지 지원합니다.
 
-## 설치
+## ✨ Features
 
-npm을 사용하여 패키지를 설치할 수 있습니다:
+- ✅ RESTful HTTP 요청 지원 (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`)
+- 📤 파일 업로드 지원 (진행률 추적 포함)
+- 📥 파일 다운로드 지원 (`<a>` 태그 활용)
+- 🔁 서버 스트림 응답 지원
+- ❌ 요청 취소 및 타임아웃 제어 (`CancelToken`)
 
-```
+---
+
+## 📦 설치
+
+```bash
 npm install @iyulab/http-client
 ```
 
-## 사용법
+## 🚀 사용 예제
 
-### HttpClient
-
-`HttpClient` 클래스를 사용하여 HTTP 요청을 보낼 수 있습니다. 다음은 기본적인 사용 예시입니다:
-
+### HTTP 일반 요청
 ```typescript
-import { HttpClient } from '@iyulab/http-client';
+import { HttpClient } from "@iyulab/http-client";
 
-const client = new HttpClient();
+const client = new HttpClient({
+  baseUrl: "https://api.example.com",
+  headers: {
+    "Authorization": "Bearer your-token",
+  },
+});
 
-client.get('https://api.example.com/data')
-  .then(response => {
-    console.log(response);
-  })
-  .catch(error => {
-    console.error(error);
-  });
+// GET 요청
+const res = await client.get("/users");
+const users = await res.json();
+console.log(users);
+
+// POST 요청
+const postRes = await client.post("/messages", { text: "Hello" });
 ```
 
-### CancelToken
-
-HTTP 요청을 취소하려면 `CancelToken` 클래스를 사용할 수 있습니다:
-
+### 파일 업로드
 ```typescript
-import { HttpClient, CancelToken } from '@iyulab/http-client';
-
-const client = new HttpClient();
-const cancelToken = new CancelToken();
-
-client.get('https://api.example.com/data', { cancelToken })
-  .then(response => {
-    console.log(response);
-  })
-  .catch(error => {
-    if (cancelToken.isCanceled) {
-      console.log('Request was canceled');
-    } else {
-      console.error(error);
-    }
-  });
-
-// 요청 취소
-cancelToken.cancel();
+const file = new File(["hello"], "hello.txt");
+for await (const event of client.upload({
+  method: "POST",
+  path: "/upload",
+  body: file,
+})) {
+  if (event.type === "progress") {
+    console.log(`Progress: ${event.progress}%`);
+  } else if (event.type === "success") {
+    console.log("Upload success:", event.status);
+  } else {
+    console.error("Upload failed:", event.message);
+  }
+}
 ```
 
-## 클래스 설명
+### 파일 다운로드
+```typescript
+client.download({
+  path: "/files/sample.pdf",
+});
+```
 
-- **CancelToken**: HTTP 요청을 취소하는 기능을 제공합니다.
-- **FileUploadEvent**: 파일 업로드 이벤트를 처리합니다.
-- **HttpClient**: HTTP 요청을 보내고 응답을 처리합니다.
-- **HttpMethod**: HTTP 메서드를 정의합니다.
-- **HttpRequest**: HTTP 요청을 나타냅니다.
-- **HttpResponse**: HTTP 응답을 나타냅니다.
-- **TextStreamEvent**: 텍스트 스트림 이벤트를 처리합니다.
+### 스트리밍 응답(Server-Sent Events 규격으로 반환합니다)
+```typescript
+const response = await client.get("/events");
+for await (const event of response.stream()) {
+  console.log(`[${event.event}]`, event.data.join("\n"));
+}
+```
 
-## 기여
+### 요청 취소 및 타임아웃
+```typescript
+import { CancelToken } from "@iyulab/http-client";
 
-기여를 원하신다면, 이 저장소를 포크하고 풀 리퀘스트를 제출해 주세요.
+const token = new CancelToken();
 
-## 라이센스
+setTimeout(() => token.cancel("User cancelled"), 2000);
 
-이 프로젝트는 MIT 라이센스 하에 배포됩니다.
+try {
+  await client.get("/slow-endpoint", token);
+} catch (e) {
+  console.warn("요청이 취소되었습니다:", e);
+}
+```
+
+## 🔧 설정 옵션
+`HttpClientConfig` 인터페이스를 통해 클라이언트를 설정할 수 있습니다:
+
+| 옵션 | 설명 |
+| ------ | ----------- |
+| `baseUrl` | 모든 요청에 적용될 기본 URL |
+| `headers` | 요청 헤더 (e.g. Authorization, Content-Type 등) |
+| `credentials` | 인증 정보 포함 여부 (include, omit, same-origin) |
+| `mode` | 요청 모드 (cors, same-origin 등) |
+| `cache` | 캐시 정책 설정 |
+| `timeout` | 요청 타임아웃 (ms 단위) |
+| `keepalive` | 페이지 언로드 중에도 요청 유지 여부 |
+
+## 📄 라이선스
+MIT © iyulab
+
+---

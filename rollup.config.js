@@ -1,6 +1,6 @@
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
-import typescript from 'rollup-plugin-typescript2';
+import typescript from '@rollup/plugin-typescript';
 import dts from 'rollup-plugin-dts';
 
 // @ts-check
@@ -30,7 +30,7 @@ export default [
     input: 'src/index.ts',
     output: {
       file: 'dist/main.d.ts',
-      format: 'es'
+      format: 'esm'
     },
     plugins: [dts()]
   }

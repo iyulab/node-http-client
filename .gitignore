@@ -1,16 +1,11 @@
+# 에디터 설정 파일
+.idea
+.vscode
+
 # Node.js 관련 파일
-node_modules/
-npm-debug.log
+node_modules
+package-lock.json
 .npm
 
-# 환경 설정 파일
-.env.local
-
 # 빌드 결과물
-/dist
-/build
-/out
-
-# 에디터 설정 파일
-.idea/
-.vscode/
+# dist

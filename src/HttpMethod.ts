@@ -1,5 +1,5 @@
 /**
- * Represents the HTTP methods that can be used in an HTTP request.
+ * Http 요청에 사용되는 메서드 타입을 정의합니다.
  */
 export type HttpMethod =
   | 'GET'

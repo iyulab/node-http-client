@@ -1,21 +1,30 @@
 {
   "name": "@iyulab/http-client",
   "version": "0.1.0",
-  "description": "A simple HTTP client for making requests and handling responses.",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/iyulab/http-client.git"
-  },
+  "description": "A simple HTTP client for handling responses.",
   "keywords": [
     "http",
-    "client",
+    "https",
     "api",
-    "typescript"
+    "client",
+    "stream",
+    "upload"
   ],
-  "author": "IyuLab",
   "license": "MIT",
-  "main": "dist/main.js",
+  "author": "iyulab",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iyulab-rnd/node-http-client.git"
+  },
+  "files": [
+    "dist",
+    "package.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
   "types": "dist/main.d.ts",
+  "main": "dist/main.js",
   "scripts": {
     "clean": "rimraf dist",
     "build": "npm run clean && rollup -c rollup.config.js"
@@ -28,12 +37,7 @@
     "rimraf": "^6.0.1",
     "rollup": "^4.40.0",
     "rollup-plugin-dts": "^6.2.1",
-    "rollup-plugin-typescript2": "^0.36.0",
     "tslib": "^2.8.1",
     "typescript": "^5.8.3"
-  },
-  "files": [
-    "dist",
-    "src"
-  ]
+  }
 }

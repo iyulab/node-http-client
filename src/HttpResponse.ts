@@ -1,4 +1,4 @@
-import { TextStreamEvent } from "./TextStreamEvent";
+import type { TextStreamEvent } from "./TextStreamEvent";
 
 /**
  * HTTP 응답을 나타내는 클래스입니다.
@@ -11,58 +11,109 @@ export class HttpResponse {
     this._response = response;
   }
 
+  /**
+   * 응답 상태가 성공(`2xx`)인지 여부를 반환합니다.
+   */
   public get ok(): boolean {
     return this._response.ok;
   }
 
+  /**
+   * HTTP 상태 코드를 반환합니다.
+   * @example 200, 404, 500
+   */
   public get status(): number {
     return this._response.status;
   }
 
+  /**
+   * HTTP 상태 텍스트를 반환합니다.
+   * @example 'OK', 'Not Found'
+   */
   public get statusText(): string {
     return this._response.statusText;
   }
 
+  /**
+   * 응답의 헤더 정보를 반환합니다.
+   */
   public get headers(): Headers {
     return this._response.headers;
   }
 
+  /**
+   * 응답을 보낸 최종 URL을 반환합니다.
+   */
   public get url(): string {
     return this._response.url;
   }
 
+  /**
+   * 요청이 리디렉션되었는지 여부를 반환합니다.
+   */
   public get redirected(): boolean {
     return this._response.redirected;
   }
 
+  /**
+   * 응답 본문을 텍스트 형식으로 반환합니다.
+   */
   public text(): Promise<string> {
     return this._response.text();
   }
 
+  /**
+   * 응답 본문을 JSON 형식으로 파싱하여 반환합니다.
+   * @template T 반환할 객체의 타입
+   */
   public json<T>(): Promise<T> {
-    return this._response.json();
-  }  
+    return this._response.json() as Promise<T>;
+  }
 
+  /**
+   * 응답 본문을 ArrayBuffer 형식으로 반환합니다.
+   */
   public arrayBuffer(): Promise<ArrayBuffer> {
     return this._response.arrayBuffer();
   }
 
+  /**
+   * 응답 본문을 Uint8Array로 변환하여 반환합니다.
+   * 주로 바이너리 데이터를 다룰 때 유용합니다.
+   */
   public async bytes(): Promise<Uint8Array> {
     const buffer = await this._response.arrayBuffer();
     return new Uint8Array(buffer);
   }
 
+  /**
+   * 응답 본문을 Blob 형식으로 반환합니다.
+   * 파일 다운로드 등에서 활용할 수 있습니다.
+   */
   public blob(): Promise<Blob> {
     return this._response.blob();
   }
 
+  /**
+   * 응답 본문을 FormData 형식으로 반환합니다.
+   * 응답 타입이 `multipart/form-data`인 경우 사용합니다.
+   */
   public formData(): Promise<FormData> {
     return this._response.formData();
   }
 
   /**
-   * 스트리밍 응답을 처리하는 제너레이터 함수입니다.
-   * 이 함수는 서버에서 전송된 텍스트를 읽어 이벤트로 변환합니다.
+   * 스트리밍 응답을 처리하는 비동기 제너레이터입니다.
+   * 서버가 전송하는 텍스트 기반 이벤트 스트림을 순차적으로 파싱하여 반환합니다.
+   *
+   * @example
+   * ```ts
+   * for await (const event of response.stream()) {
+   *   console.log(event.event, event.data);
+   * }
+   * ```
+   * @yields TextStreamEvent 형식의 이벤트 객체
+   * @throws 응답 본문 스트림을 사용할 수 없는 경우 오류가 발생합니다.
    */
   public async *stream(): AsyncGenerator<TextStreamEvent> {
     const reader = this._response.body?.getReader();
@@ -110,7 +161,11 @@ export class HttpResponse {
     }
   }
 
-  // 한 이벤트 블록의 텍스트를 파싱하여 StreamEvent 객체로 변환합니다.
+  /**
+   * 단일 텍스트 블록을 TextStreamEvent로 파싱합니다.
+   * @param data 이벤트 블록 텍스트
+   * @returns 파싱된 TextStreamEvent 객체 또는 undefined
+   */
   private parse(data: string): TextStreamEvent | undefined {
     if (!data) return undefined;
     const lines = data.split(/\r?\n/).filter(line => line.trim() !== "");
