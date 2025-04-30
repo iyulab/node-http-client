@@ -70,7 +70,7 @@ client.download({
 ```typescript
 const response = await client.get("/events");
 for await (const event of response.stream()) {
-  console.log(`[${event.event}]`, event.data.join("\n"));
+  console.log(`[${event.event}]`, event.data));
 }
 ```
 

@@ -1,6 +1,6 @@
 {
   "name": "@iyulab/http-client",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A simple HTTP client for handling responses.",
   "keywords": [
     "http",
@@ -25,17 +25,27 @@
   "type": "module",
   "types": "dist/main.d.ts",
   "main": "dist/main.js",
+  "exports": {
+    ".": {
+      "types": "./dist/main.d.ts",
+      "import": "./dist/main.js",
+      "require": "./dist/main.cjs.js",
+      "default": "./dist/main.umd.js"
+    }
+  },
   "scripts": {
     "clean": "rimraf dist",
-    "build": "npm run clean && rollup -c rollup.config.js"
+    "build": "npm run clean && rollup -c rollup.config.js",
+    "watch": "npm run clean && rollup -c rollup.config.js --watch"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^28.0.3",
     "@rollup/plugin-node-resolve": "^16.0.1",
+    "@rollup/plugin-terser": "^0.4.4",
     "@rollup/plugin-typescript": "^12.1.2",
-    "@types/node": "^22.15.2",
+    "@types/node": "^22.15.3",
     "rimraf": "^6.0.1",
-    "rollup": "^4.40.0",
+    "rollup": "^4.40.1",
     "rollup-plugin-dts": "^6.2.1",
     "tslib": "^2.8.1",
     "typescript": "^5.8.3"

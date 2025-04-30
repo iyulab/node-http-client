@@ -170,17 +170,20 @@ export class HttpResponse {
     if (!data) return undefined;
     const lines = data.split(/\r?\n/).filter(line => line.trim() !== "");
     if (lines.length === 0) return undefined;
-    const event: TextStreamEvent = { event: "message", data: [] };
+    const event: TextStreamEvent = { event: "message", data: "" };
 
     for (const line of lines) {
       const divider = line.indexOf(":");
       if (divider === -1) continue;
+
       const key = line.slice(0, divider).trim();
       const value = line.slice(divider + 1).trim();
+
       if (key === "event") {
         event.event = value;
       } else if (key === "data") {
-        event.data.push(value);
+        // data가 여러 줄인 경우, 이전 데이터와 'LF'로 연결합니다.
+        event.data = event.data ? `${event.data}\n${value}` : value;
       } else if (key === "id") {
         event.id = value;
       } else if (key === "retry") {
@@ -191,7 +194,11 @@ export class HttpResponse {
       }
     }
 
-    return event;
+    if (event.data) {
+      return event;
+    } else {
+      return undefined; // 데이터가 없는 경우 undefined 반환
+    }
   }
 
 }

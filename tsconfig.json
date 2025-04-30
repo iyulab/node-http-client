@@ -36,10 +36,14 @@
 
     // 기타 옵션
     "useDefineForClassFields": false,
-    "skipLibCheck": true,
     "preserveSymlinks": true
   },
   "include": [
     "src/**/*",
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "types"
   ]
 }

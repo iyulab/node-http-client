@@ -1,5 +1,6 @@
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
+import terser from '@rollup/plugin-terser';
 import typescript from '@rollup/plugin-typescript';
 import dts from 'rollup-plugin-dts';
 
@@ -11,27 +12,39 @@ export default [
     output: [
       {
         file: 'dist/main.js',
-        format: 'esm',
+        format: 'es',
       },
       {
         file: 'dist/main.cjs.js',
         format: 'cjs',
+      },
+      {
+        file: 'dist/main.umd.js',
+        format: 'umd',
+        name: 'HttpClient',
       }
     ],
     plugins: [
-      resolve(),
+      resolve({
+        browser: true,
+      }),
       commonjs(),
+      terser(),
       typescript({
         tsconfig: './tsconfig.json',
-      })
+      }),
     ]
   },
   {
     input: 'src/index.ts',
     output: {
       file: 'dist/main.d.ts',
-      format: 'esm'
+      format: 'es'
     },
-    plugins: [dts()]
+    plugins: [
+      dts({
+        tsconfig: './tsconfig.json'
+      })
+    ]
   }
 ];

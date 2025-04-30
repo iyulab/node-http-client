@@ -12,11 +12,11 @@ export interface TextStreamEvent {
   event: string;
 
   /**
-   * 이벤트와 함께 전달된 데이터 라인들의 배열입니다.
-   * 여러 줄 데이터가 있는 경우 각각의 줄이 하나의 요소로 분리됩니다.
-   * @example ["line 1", "line 2", "line 3"]
+   * 이벤트와 함께 전달된 데이터입니다.
+   * 여러 줄 데이터가 있는 경우 하나의 문자열로 결합됩니다.
+   * @example "line 1\nline 2\nline 3"
    */
-  data: string[];
+  data: string;
 
   /**
    * 이벤트 고유 식별자입니다.
