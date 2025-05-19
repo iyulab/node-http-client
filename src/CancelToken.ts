@@ -1,3 +1,5 @@
+import { CanceledError } from './CanceledError';
+
 /**
  * CancelToken 클래스는 작업 취소를 관리하기 위한 객체입니다.
  * 내부적으로 AbortController를 사용하며, 등록된 콜백과 함께 취소 신호를 전파합니다.
@@ -63,7 +65,7 @@ export class CancelToken {
    */
   public throwIfCancelled(): void {
     if (this._isCancelled) {
-      throw new Error("Operation has been cancelled");
+      throw new CanceledError("Operation has been cancelled");
     }
   }
 }

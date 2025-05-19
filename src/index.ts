@@ -1,3 +1,4 @@
+export * from './CanceledError';
 export * from './CancelToken';
 export * from './HttpClient';
 export * from './HttpClientConfig';

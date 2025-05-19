@@ -76,7 +76,7 @@ for await (const event of response.stream()) {
 
 ### 요청 취소 및 타임아웃
 ```typescript
-import { CancelToken } from "@iyulab/http-client";
+import { CancelToken, CanceledError } from "@iyulab/http-client";
 
 const token = new CancelToken();
 
@@ -84,8 +84,12 @@ setTimeout(() => token.cancel("User cancelled"), 2000);
 
 try {
   await client.get("/slow-endpoint", token);
-} catch (e) {
-  console.warn("요청이 취소되었습니다:", e);
+} catch (error: any) {
+  if (error instanceof CanceledError) {
+    console.error("요청이 취소되었습니다:", error.message);
+  } else {
+    console.error("요청 중 오류 발생:", error);
+  }
 }
 ```
 

@@ -1,6 +1,6 @@
 {
   "name": "@iyulab/http-client",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A simple HTTP client for handling responses.",
   "keywords": [
     "http",
@@ -14,7 +14,7 @@
   "author": "iyulab",
   "repository": {
     "type": "git",
-    "url": "https://github.com/iyulab-rnd/node-http-client.git"
+    "url": "https://github.com/iyulab/node-http-client.git"
   },
   "files": [
     "dist",
@@ -43,9 +43,9 @@
     "@rollup/plugin-node-resolve": "^16.0.1",
     "@rollup/plugin-terser": "^0.4.4",
     "@rollup/plugin-typescript": "^12.1.2",
-    "@types/node": "^22.15.3",
+    "@types/node": "^22.15.19",
     "rimraf": "^6.0.1",
-    "rollup": "^4.40.1",
+    "rollup": "^4.41.0",
     "rollup-plugin-dts": "^6.2.1",
     "tslib": "^2.8.1",
     "typescript": "^5.8.3"

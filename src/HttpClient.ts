@@ -3,6 +3,7 @@ import type { HttpRequest, HttpUploadRequest, HttpDownloadRequest } from "./Http
 import type { FileUploadEvent } from "./FileUploadEvent";
 import { HttpResponse } from "./HttpResponse";
 import { CancelToken } from "./CancelToken";
+import { CanceledError } from "./CanceledError";
 
 /**
  * HTTP 클라이언트를 나타내는 클래스입니다.
@@ -139,9 +140,12 @@ export class HttpClient {
 
       // 6. 응답 처리
       return new HttpResponse(res);
-    } catch (error) {
-      // console.error("HTTP request failed:", error);
-      throw error;
+    } catch (error: any) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new CanceledError(error); // 요청이 취소된 경우
+      } else {
+        throw error; // 다른 오류는 다시 던집니다.
+      }
     } finally {
       // 7. 타이머를 정리합니다.
       if (timer) {
@@ -272,6 +276,10 @@ export class HttpClient {
         type: 'failure',
         message: 'Request timed out',
       });
+    };
+
+    xhr.onabort = (ev: ProgressEvent) => {
+      throw new CanceledError(ev);
     };
     
     // 취소 토큰 설정

@@ -1,3 +1,4 @@
+import { CanceledError } from "./CanceledError";
 import type { TextStreamEvent } from "./TextStreamEvent";
 
 /**
@@ -116,14 +117,14 @@ export class HttpResponse {
    * @throws 응답 본문 스트림을 사용할 수 없는 경우 오류가 발생합니다.
    */
   public async *stream(): AsyncGenerator<TextStreamEvent> {
-    const reader = this._response.body?.getReader();
-    const decoder = new TextDecoder("utf-8");
-  
-    if (!reader) {
-      throw new Error("No response body available.");
-    }
-  
     try {
+      const reader = this._response.body?.getReader();
+      const decoder = new TextDecoder("utf-8");
+
+      if (!reader) {
+        throw new Error("Response body is not available for streaming.");
+      }
+
       let done = false;
       let buffer = ""; // 디코딩된 텍스트를 저장할 버퍼입니다.
       const delimiter = /\r?\n\r?\n/; // 이벤트 블록의 구분자입니다.
@@ -155,9 +156,12 @@ export class HttpResponse {
           yield event;
         }
       }
-    } finally {
-      reader.releaseLock();
-      this._response.body?.cancel(); // 스트림을 안전하게 취소
+    } catch (error: any) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new CanceledError(error); // 요청이 취소된 경우
+      } else {
+        throw error; // 다른 오류는 다시 던집니다.
+      }
     }
   }
 

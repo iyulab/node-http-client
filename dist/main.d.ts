@@ -1,4 +1,11 @@
 /**
+ * 요청이 취소되었음을 나타내는 오류입니다.
+ */
+declare class CanceledError extends Error {
+    constructor(error?: any);
+}
+
+/**
  * CancelToken 클래스는 작업 취소를 관리하기 위한 객체입니다.
  * 내부적으로 AbortController를 사용하며, 등록된 콜백과 함께 취소 신호를 전파합니다.
  */
@@ -440,5 +447,5 @@ declare class HttpClient {
     private parseUrl;
 }
 
-export { CancelToken, HttpClient, HttpResponse };
+export { CancelToken, CanceledError, HttpClient, HttpResponse };
 export type { FileUploadEvent, FileUploadFailureEvent, FileUploadProgressEvent, FileUploadSuccessEvent, HttpClientConfig, HttpDownloadRequest, HttpMethod, HttpRequest, HttpUploadRequest, TextStreamEvent };

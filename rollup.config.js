@@ -29,7 +29,16 @@ export default [
         browser: true,
       }),
       commonjs(),
-      terser(),
+      terser({
+        mangle: false,           // 난독화 비활성화
+        format: {
+          comments: true,        // 주석 유지
+          beautify: true         // 코드 포맷을 일정하게 유지 (최소한의 가독성 제공)
+        },
+        compress: {
+          passes: 2,             // 기본적인 최적화만 두 번 적용
+        }
+      }),
       typescript({
         tsconfig: './tsconfig.json',
       }),
