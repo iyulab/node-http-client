@@ -20,12 +20,10 @@
     "dist",
     "package.json",
     "README.md",
-    "CHANGELOG.md",
     "LICENSE"
   ],
   "type": "module",
   "types": "dist/main.d.ts",
-  "main": "dist/main.js",
   "exports": {
     ".": {
       "types": "./dist/main.d.ts",
