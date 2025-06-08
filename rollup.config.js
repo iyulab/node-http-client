@@ -4,7 +4,6 @@ import terser from '@rollup/plugin-terser';
 import typescript from '@rollup/plugin-typescript';
 import dts from 'rollup-plugin-dts';
 
-// @ts-check
 /** @type {import('rollup').RollupOptions[]} */
 export default [
   {
