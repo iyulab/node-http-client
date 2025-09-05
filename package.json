@@ -38,15 +38,15 @@
     "watch": "npm run clean && rollup -c rollup.config.js --watch"
   },
   "devDependencies": {
-    "@rollup/plugin-commonjs": "^28.0.3",
+    "@rollup/plugin-commonjs": "^28.0.6",
     "@rollup/plugin-node-resolve": "^16.0.1",
     "@rollup/plugin-terser": "^0.4.4",
-    "@rollup/plugin-typescript": "^12.1.2",
-    "@types/node": "^24.0.1",
+    "@rollup/plugin-typescript": "^12.1.4",
+    "@types/node": "^24.3.1",
     "rimraf": "^6.0.1",
-    "rollup": "^4.43.0",
-    "rollup-plugin-dts": "^6.2.1",
+    "rollup": "^4.50.0",
+    "rollup-plugin-dts": "^6.2.3",
     "tslib": "^2.8.1",
-    "typescript": "^5.8.3"
+    "typescript": "^5.9.2"
   }
 }
