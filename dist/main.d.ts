@@ -1,7 +1,7 @@
 /**
  * 요청이 취소되었음을 나타내는 오류입니다.
  */
-declare class CanceledError extends Error {
+export declare class CanceledError extends Error {
     constructor(error?: any);
 }
 
@@ -9,7 +9,7 @@ declare class CanceledError extends Error {
  * CancelToken 클래스는 작업 취소를 관리하기 위한 객체입니다.
  * 내부적으로 AbortController를 사용하며, 등록된 콜백과 함께 취소 신호를 전파합니다.
  */
-declare class CancelToken {
+export declare class CancelToken {
     private _isCancelled;
     private readonly controller;
     private readonly callbacks;
@@ -47,9 +47,162 @@ declare class CancelToken {
 }
 
 /**
+ * 업로드 진행 상황, 성공, 실패 이벤트를 포함하는 타입입니다.
+ */
+export declare type FileUploadEvent = FileUploadProgressEvent | FileUploadSuccessEvent | FileUploadFailureEvent;
+
+/**
+ * 파일 업로드가 실패했을 때 발생하는 이벤트입니다.
+ * 상태 코드가 없을 수도 있으며, 메시지를 통해 원인을 전달합니다.
+ */
+export declare interface FileUploadFailureEvent {
+    type: 'failure';
+    /**
+     * HTTP 응답 상태 코드입니다.
+     * 네트워크 오류 등으로 응답이 없을 경우 생략될 수 있습니다.
+     */
+    status?: number;
+    /**
+     * 실패 원인을 설명하는 메시지입니다.
+     */
+    message?: string;
+}
+
+/**
+ * 파일 업로드 진행 중 발생하는 이벤트입니다.
+ * 업로드된 바이트 수, 전체 크기, 진행률을 포함합니다.
+ */
+export declare interface FileUploadProgressEvent {
+    type: 'progress';
+    /**
+     * 현재까지 업로드된 바이트 수입니다.
+     */
+    loaded: number;
+    /**
+     * 업로드 대상의 전체 바이트 수입니다.
+     */
+    total: number;
+    /**
+     * 업로드 진행률입니다. (0~100 사이의 정수(integer))
+     * @example 42
+     */
+    progress: number;
+}
+
+/**
+ * 파일 업로드가 성공적으로 완료되었을 때 발생하는 이벤트입니다.
+ * 서버의 응답 상태 코드, 헤더, 본문 등을 포함할 수 있습니다.
+ */
+export declare interface FileUploadSuccessEvent {
+    type: 'success';
+    /**
+     * HTTP 응답 상태 코드입니다.
+     * @example 200
+     */
+    status: number;
+    /**
+     * 서버에서 반환한 응답 헤더입니다.
+     * 키-값 쌍으로 구성되어 있으며 선택적입니다.
+     */
+    headers?: Record<string, string>;
+    /**
+     * 서버 응답 본문입니다.
+     * JSON, Blob, 텍스트 등 다양한 형식일 수 있습니다.
+     */
+    body?: any;
+}
+
+/**
+ * HTTP 클라이언트를 나타내는 클래스입니다.
+ *
+ * - 일반 요청은 Fetch API를 통해 처리합니다.
+ * - 파일 업로드는 XMLHttpRequest를 사용하여 진행되며 진행률 이벤트를 제공합니다.
+ * - 단순 파일 다운로드는 `<a>` 태그를 통해 브라우저 다운로드를 유도합니다.
+ *
+ * @example
+ * const client = new HttpClient({ baseUrl: 'https://api.example.com' });
+ * const response = await client.send({ method: 'GET', path: '/users' });
+ */
+export declare class HttpClient {
+    private readonly baseUrl?;
+    private readonly headers?;
+    private readonly timeout?;
+    private readonly credentials?;
+    private readonly mode?;
+    private readonly cache?;
+    private readonly keepalive?;
+    constructor(config: HttpClientConfig);
+    /**
+     * HEAD 요청을 보내 리소스의 존재 여부나 메타데이터를 확인합니다.
+     * 본문 없이 헤더만 반환됩니다.
+     */
+    head(url: string, cancelToken?: CancelToken): Promise<HttpResponse>;
+    /**
+     * GET 요청을 보내 데이터를 조회합니다.
+     */
+    get(url: string, cancelToken?: CancelToken): Promise<HttpResponse>;
+    /**
+     * POST 요청을 보내 서버에 리소스를 생성하거나 데이터를 전송합니다.
+     */
+    post(url: string, body: any, cancelToken?: CancelToken): Promise<HttpResponse>;
+    /**
+     * PUT 요청을 보내 서버 리소스를 전체 교체하거나 생성합니다.
+     */
+    put(url: string, body: any, cancelToken?: CancelToken): Promise<HttpResponse>;
+    /**
+     * PATCH 요청을 보내 서버 리소스의 일부를 수정합니다.
+     */
+    patch(url: string, body: any, cancelToken?: CancelToken): Promise<HttpResponse>;
+    /**
+     * DELETE 요청을 보내 서버 리소스를 삭제합니다.
+     */
+    delete(url: string, cancelToken?: CancelToken): Promise<HttpResponse>;
+    /**
+     * Fetch API를 이용하여 일반 HTTP 요청을 보냅니다.
+     *
+     * @param request 요청 객체
+     * @param cancelToken 요청을 중단할 수 있는 토큰
+     * @returns 서버로부터의 응답 객체
+     */
+    send(request: HttpRequest, cancelToken?: CancelToken): Promise<HttpResponse>;
+    /**
+     * XMLHttpRequest를 이용해 파일 업로드를 수행하며,
+     * 업로드 진행 상황을 AsyncGenerator 형태로 스트리밍합니다.
+     *
+     * @param request 업로드 요청 객체
+     * @param cancelToken 요청 취소 토큰
+     * @returns 업로드 이벤트 스트림
+     */
+    upload(request: HttpUploadRequest, cancelToken?: CancelToken): AsyncGenerator<FileUploadEvent>;
+    /**
+     * 브라우저의 기본 다운로드 동작을 활용하여 파일을 다운로드합니다.
+     * (a 태그를 임시로 생성 후 클릭)
+     *
+     * @param request 다운로드 요청 객체
+     */
+    download(request: HttpDownloadRequest): void;
+    /**
+     * 요청에 사용할 최종 URL을 생성합니다.
+     *
+     * @param baseUrl 기본 URL
+     * @param path 추가 경로
+     * @param query 쿼리 파라미터
+     * @returns 완성된 URL 객체
+     */
+    private buildUrl;
+    /**
+     * 주어진 URL 문자열을 baseUrl, path, query로 분해합니다.
+     *
+     * @param url 전체 URL 또는 상대 경로 URL
+     * @returns URL 구성 요소
+     */
+    private parseUrl;
+}
+
+/**
  * HTTP 클라이언트를 설정하기 위한 구성 옵션입니다.
  */
-interface HttpClientConfig {
+export declare interface HttpClientConfig {
     /**
      * 모든 HTTP 요청의 기준이 되는 기본 URL입니다.
      * 상대 경로 요청 시 이 URL이 자동으로 앞에 붙습니다.
@@ -108,14 +261,36 @@ interface HttpClientConfig {
 }
 
 /**
+ * 파일 다운로드 요청을 표현합니다.
+ */
+export declare interface HttpDownloadRequest {
+    /**
+     * 모든 HTTP 요청의 기준이 되는 기본 URL입니다.
+     * 상대 경로 요청 시 이 URL이 자동으로 앞에 붙습니다.
+     *
+     * @example 'https://api.example.com'
+     */
+    baseUrl?: string;
+    /**
+     * base URL을 기준으로 한 요청 경로입니다.
+     * @example '/files/download/report.pdf'
+     */
+    path?: string;
+    /**
+     * 요청 URL에 포함할 쿼리 파라미터입니다.
+     */
+    query?: Record<string, string | string[]>;
+}
+
+/**
  * Http 요청에 사용되는 메서드 타입을 정의합니다.
  */
-type HttpMethod = 'GET' | 'HEAD' | 'OPTIONS' | 'TRACE' | 'PUT' | 'POST' | 'PATCH' | 'DELETE' | 'CONNECT';
+export declare type HttpMethod = 'GET' | 'HEAD' | 'OPTIONS' | 'TRACE' | 'PUT' | 'POST' | 'PATCH' | 'DELETE' | 'CONNECT';
 
 /**
  * 일반적인 HTTP 요청을 표현합니다.
  */
-interface HttpRequest extends HttpClientConfig {
+export declare interface HttpRequest extends HttpClientConfig {
     /**
      * 요청에 사용할 HTTP 메서드입니다.
      */
@@ -137,151 +312,12 @@ interface HttpRequest extends HttpClientConfig {
      */
     body?: any;
 }
-/**
- * 파일 업로드를 위한 HTTP 요청을 표현합니다.
- */
-interface HttpUploadRequest extends HttpClientConfig {
-    /**
-     * 요청에 사용할 HTTP 메서드입니다.
-     * 일반적으로 'POST' 또는 'PUT'을 사용합니다.
-     */
-    method: HttpMethod;
-    /**
-     * base URL을 기준으로 한 요청 경로입니다.
-     * @example '/files/upload'
-     */
-    path?: string;
-    /**
-     * 요청 URL에 포함할 쿼리 파라미터입니다.
-     */
-    query?: Record<string, string | string[]>;
-    /**
-     * 업로드할 파일 데이터입니다.
-     * - `FormData`: 다중 파일 업로드나 추가 필드를 포함하는 경우
-     * - `File`: 단일 파일 업로드, FormData에 `file` 필드로 추가됩니다.
-     * - `File[]`: 여러 파일 업로드, FormData에 `files` 필드로 추가됩니다.
-     */
-    body: FormData | File | File[];
-}
-/**
- * 파일 다운로드 요청을 표현합니다.
- */
-interface HttpDownloadRequest {
-    /**
-     * 모든 HTTP 요청의 기준이 되는 기본 URL입니다.
-     * 상대 경로 요청 시 이 URL이 자동으로 앞에 붙습니다.
-     *
-     * @example 'https://api.example.com'
-     */
-    baseUrl?: string;
-    /**
-     * base URL을 기준으로 한 요청 경로입니다.
-     * @example '/files/download/report.pdf'
-     */
-    path?: string;
-    /**
-     * 요청 URL에 포함할 쿼리 파라미터입니다.
-     */
-    query?: Record<string, string | string[]>;
-}
-
-/**
- * 업로드 진행 상황, 성공, 실패 이벤트를 포함하는 타입입니다.
- */
-type FileUploadEvent = FileUploadProgressEvent | FileUploadSuccessEvent | FileUploadFailureEvent;
-/**
- * 파일 업로드 진행 중 발생하는 이벤트입니다.
- * 업로드된 바이트 수, 전체 크기, 진행률을 포함합니다.
- */
-interface FileUploadProgressEvent {
-    type: 'progress';
-    /**
-     * 현재까지 업로드된 바이트 수입니다.
-     */
-    loaded: number;
-    /**
-     * 업로드 대상의 전체 바이트 수입니다.
-     */
-    total: number;
-    /**
-     * 업로드 진행률입니다. (0~100 사이의 정수(integer))
-     * @example 42
-     */
-    progress: number;
-}
-/**
- * 파일 업로드가 성공적으로 완료되었을 때 발생하는 이벤트입니다.
- * 서버의 응답 상태 코드, 헤더, 본문 등을 포함할 수 있습니다.
- */
-interface FileUploadSuccessEvent {
-    type: 'success';
-    /**
-     * HTTP 응답 상태 코드입니다.
-     * @example 200
-     */
-    status: number;
-    /**
-     * 서버에서 반환한 응답 헤더입니다.
-     * 키-값 쌍으로 구성되어 있으며 선택적입니다.
-     */
-    headers?: Record<string, string>;
-    /**
-     * 서버 응답 본문입니다.
-     * JSON, Blob, 텍스트 등 다양한 형식일 수 있습니다.
-     */
-    body?: any;
-}
-/**
- * 파일 업로드가 실패했을 때 발생하는 이벤트입니다.
- * 상태 코드가 없을 수도 있으며, 메시지를 통해 원인을 전달합니다.
- */
-interface FileUploadFailureEvent {
-    type: 'failure';
-    /**
-     * HTTP 응답 상태 코드입니다.
-     * 네트워크 오류 등으로 응답이 없을 경우 생략될 수 있습니다.
-     */
-    status?: number;
-    /**
-     * 실패 원인을 설명하는 메시지입니다.
-     */
-    message?: string;
-}
-
-/**
- * 텍스트 스트림 이벤트를 나타내는 인터페이스입니다.
- * 이 인터페이스는 Server-Sent Events(SSE) 형식의 이벤트 구조를 기반으로 합니다.
- *
- * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format | MDN - Using Server-Sent Events}
- */
-interface TextStreamEvent {
-    /**
-     * 이벤트 유형을 나타냅니다.
-     * @default "message"
-     */
-    event: string;
-    /**
-     * 이벤트와 함께 전달된 데이터입니다.
-     * 여러 줄 데이터가 있는 경우 하나의 문자열로 결합됩니다.
-     * @example "line 1\nline 2\nline 3"
-     */
-    data: string;
-    /**
-     * 이벤트 고유 식별자입니다.
-     * 이 값은 재연결 시 클라이언트가 마지막으로 수신한 이벤트를 기준으로 이어받기 위해 사용됩니다.
-     */
-    id?: string;
-    /**
-     * 서버가 클라이언트에 재연결을 시도하도록 지시하는 시간(ms)입니다.
-     */
-    retry?: number;
-}
 
 /**
  * HTTP 응답을 나타내는 클래스입니다.
  * Fetch API의 Response 객체를 래핑하여 다양한 응답 처리 메서드를 제공합니다.
  */
-declare class HttpResponse {
+export declare class HttpResponse {
     private readonly _response;
     constructor(response: Response);
     /**
@@ -361,91 +397,59 @@ declare class HttpResponse {
 }
 
 /**
- * HTTP 클라이언트를 나타내는 클래스입니다.
- *
- * - 일반 요청은 Fetch API를 통해 처리합니다.
- * - 파일 업로드는 XMLHttpRequest를 사용하여 진행되며 진행률 이벤트를 제공합니다.
- * - 단순 파일 다운로드는 `<a>` 태그를 통해 브라우저 다운로드를 유도합니다.
- *
- * @example
- * const client = new HttpClient({ baseUrl: 'https://api.example.com' });
- * const response = await client.send({ method: 'GET', path: '/users' });
+ * 파일 업로드를 위한 HTTP 요청을 표현합니다.
  */
-declare class HttpClient {
-    private readonly baseUrl?;
-    private readonly headers?;
-    private readonly timeout?;
-    private readonly credentials?;
-    private readonly mode?;
-    private readonly cache?;
-    private readonly keepalive?;
-    constructor(config: HttpClientConfig);
+export declare interface HttpUploadRequest extends HttpClientConfig {
     /**
-     * HEAD 요청을 보내 리소스의 존재 여부나 메타데이터를 확인합니다.
-     * 본문 없이 헤더만 반환됩니다.
+     * 요청에 사용할 HTTP 메서드입니다.
+     * 일반적으로 'POST' 또는 'PUT'을 사용합니다.
      */
-    head(url: string, cancelToken?: CancelToken): Promise<HttpResponse>;
+    method: HttpMethod;
     /**
-     * GET 요청을 보내 데이터를 조회합니다.
+     * base URL을 기준으로 한 요청 경로입니다.
+     * @example '/files/upload'
      */
-    get(url: string, cancelToken?: CancelToken): Promise<HttpResponse>;
+    path?: string;
     /**
-     * POST 요청을 보내 서버에 리소스를 생성하거나 데이터를 전송합니다.
+     * 요청 URL에 포함할 쿼리 파라미터입니다.
      */
-    post(url: string, body: any, cancelToken?: CancelToken): Promise<HttpResponse>;
+    query?: Record<string, string | string[]>;
     /**
-     * PUT 요청을 보내 서버 리소스를 전체 교체하거나 생성합니다.
+     * 업로드할 파일 데이터입니다.
+     * - `FormData`: 다중 파일 업로드나 추가 필드를 포함하는 경우
+     * - `File`: 단일 파일 업로드, FormData에 `file` 필드로 추가됩니다.
+     * - `File[]`: 여러 파일 업로드, FormData에 `files` 필드로 추가됩니다.
      */
-    put(url: string, body: any, cancelToken?: CancelToken): Promise<HttpResponse>;
-    /**
-     * PATCH 요청을 보내 서버 리소스의 일부를 수정합니다.
-     */
-    patch(url: string, body: any, cancelToken?: CancelToken): Promise<HttpResponse>;
-    /**
-     * DELETE 요청을 보내 서버 리소스를 삭제합니다.
-     */
-    delete(url: string, cancelToken?: CancelToken): Promise<HttpResponse>;
-    /**
-     * Fetch API를 이용하여 일반 HTTP 요청을 보냅니다.
-     *
-     * @param request 요청 객체
-     * @param cancelToken 요청을 중단할 수 있는 토큰
-     * @returns 서버로부터의 응답 객체
-     */
-    send(request: HttpRequest, cancelToken?: CancelToken): Promise<HttpResponse>;
-    /**
-     * XMLHttpRequest를 이용해 파일 업로드를 수행하며,
-     * 업로드 진행 상황을 AsyncGenerator 형태로 스트리밍합니다.
-     *
-     * @param request 업로드 요청 객체
-     * @param cancelToken 요청 취소 토큰
-     * @returns 업로드 이벤트 스트림
-     */
-    upload(request: HttpUploadRequest, cancelToken?: CancelToken): AsyncGenerator<FileUploadEvent>;
-    /**
-     * 브라우저의 기본 다운로드 동작을 활용하여 파일을 다운로드합니다.
-     * (a 태그를 임시로 생성 후 클릭)
-     *
-     * @param request 다운로드 요청 객체
-     */
-    download(request: HttpDownloadRequest): void;
-    /**
-     * 요청에 사용할 최종 URL을 생성합니다.
-     *
-     * @param baseUrl 기본 URL
-     * @param path 추가 경로
-     * @param query 쿼리 파라미터
-     * @returns 완성된 URL 객체
-     */
-    private buildUrl;
-    /**
-     * 주어진 URL 문자열을 baseUrl, path, query로 분해합니다.
-     *
-     * @param url 전체 URL 또는 상대 경로 URL
-     * @returns URL 구성 요소
-     */
-    private parseUrl;
+    body: FormData | File | File[];
 }
 
-export { CancelToken, CanceledError, HttpClient, HttpResponse };
-export type { FileUploadEvent, FileUploadFailureEvent, FileUploadProgressEvent, FileUploadSuccessEvent, HttpClientConfig, HttpDownloadRequest, HttpMethod, HttpRequest, HttpUploadRequest, TextStreamEvent };
+/**
+ * 텍스트 스트림 이벤트를 나타내는 인터페이스입니다.
+ * 이 인터페이스는 Server-Sent Events(SSE) 형식의 이벤트 구조를 기반으로 합니다.
+ *
+ * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format | MDN - Using Server-Sent Events}
+ */
+export declare interface TextStreamEvent {
+    /**
+     * 이벤트 유형을 나타냅니다.
+     * @default "message"
+     */
+    event: string;
+    /**
+     * 이벤트와 함께 전달된 데이터입니다.
+     * 여러 줄 데이터가 있는 경우 하나의 문자열로 결합됩니다.
+     * @example "line 1\nline 2\nline 3"
+     */
+    data: string;
+    /**
+     * 이벤트 고유 식별자입니다.
+     * 이 값은 재연결 시 클라이언트가 마지막으로 수신한 이벤트를 기준으로 이어받기 위해 사용됩니다.
+     */
+    id?: string;
+    /**
+     * 서버가 클라이언트에 재연결을 시도하도록 지시하는 시간(ms)입니다.
+     */
+    retry?: number;
+}
+
+export { }

@@ -1,5 +1,3 @@
-"use strict";
-Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 class CanceledError extends Error {
   constructor(error) {
     super();
@@ -535,7 +533,9 @@ class HttpClient {
     }
   }
 }
-exports.CancelToken = CancelToken;
-exports.CanceledError = CanceledError;
-exports.HttpClient = HttpClient;
-exports.HttpResponse = HttpResponse;
+export {
+  CancelToken,
+  CanceledError,
+  HttpClient,
+  HttpResponse
+};
