@@ -1,6 +1,6 @@
 {
   "name": "@iyulab/http-client",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A simple HTTP client for handling responses.",
   "keywords": [
     "http",
@@ -37,7 +37,6 @@
   },
   "devDependencies": {
     "@types/node": "^24.9.1",
-    "rimraf": "^6.0.1",
     "tslib": "^2.8.1",
     "typescript": "^5.9.3",
     "vite": "^7.1.12",

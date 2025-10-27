@@ -1,11 +1,11 @@
-# 에디터 설정 파일
+# IDE settings
 .idea
 .vscode
 
-# Node.js 관련 파일
+# Node.js files
+.npm
 node_modules
 package-lock.json
-.npm
 
-# 빌드 결과물
-# dist
+# output files
+dist

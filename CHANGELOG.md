@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.0 (June 20, 2025)
+- Change builder to Vite
+
 ## 0.3.0 (October 10, 2025)
 - Added `CanceledError` error object for cancellation points
 - Removed obfuscation from build files, maintained comments, and applied formatting
