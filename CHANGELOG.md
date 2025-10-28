@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0 (October 28, 2025)
+- Added comprehensive stream parsing support (SSE, JSON, Text) with auto-detection
+- Unified stream response interfaces with type discrimination
+- Refactored code structure with modular architecture (types, internals, parsers)
+- Enhanced file upload with response-based event system
+- Improved URL handling with separated utility functions
+
 ## 0.4.0 (June 20, 2025)
 - Change builder to Vite
 

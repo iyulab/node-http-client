@@ -1,14 +1,14 @@
 # @iyulab/http-client
 
 An HTTP client library for browsers.  
-Supports general requests, file upload/download, and server stream responses using both Fetch API and XMLHttpRequest.
+Supports general requests, file upload/download, and multiple stream response formats using both Fetch API and XMLHttpRequest.
 
 ## ✨ Features
 
 - ✅ RESTful HTTP request support (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`)
 - 📤 File upload support (with progress tracking)
 - 📥 File download support (using `<a>` tag)
-- 🔁 Server stream response support
+- 🔁 Stream response support (SSE, JSON, Text with auto-detection)
 - ❌ Request cancellation and timeout control (`CancelToken`)
 
 ---
@@ -44,17 +44,17 @@ const postRes = await client.post("/messages", { text: "Hello" });
 ### File Upload
 ```typescript
 const file = new File(["hello"], "hello.txt");
-for await (const event of client.upload({
+for await (const response of client.upload({
   method: "POST",
   path: "/upload",
   body: file,
 })) {
-  if (event.type === "progress") {
-    console.log(`Progress: ${event.progress}%`);
-  } else if (event.type === "success") {
-    console.log("Upload success:", event.status);
+  if (response.type === "progress") {
+    console.log(`Progress: ${response.progress}%`);
+  } else if (response.type === "success") {
+    console.log("Upload success:", response.status);
   } else {
-    console.error("Upload failed:", event.message);
+    console.error("Upload failed:", response.message);
   }
 }
 ```
@@ -66,11 +66,28 @@ client.download({
 });
 ```
 
-### Streaming Response (Returns in Server-Sent Events format)
+### Stream Response Handling
 ```typescript
-const response = await client.get("/events");
-for await (const event of response.stream()) {
-  console.log(`[${event.event}]`, event.data));
+const response = await client.get("/stream");
+
+// Auto-detection (based on Content-Type header)
+for await (const item of response.stream({ format: 'auto' })) {
+  console.log(item.type, item.data);
+}
+
+// SSE stream
+for await (const event of response.streamAsSse()) {
+  console.log(`[${event.event}]`, event.data);
+}
+
+// JSON stream
+for await (const json of response.streamAsJson()) {
+  console.log(JSON.parse(json.data));
+}
+
+// Text stream
+for await (const line of response.streamAsText()) {
+  console.log(line.data);
 }
 ```
 

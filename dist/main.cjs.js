@@ -78,64 +78,302 @@ class CancelToken {
     }
   }
 }
+function buildUrl({ baseUrl, path, query }) {
+  if (!baseUrl) {
+    throw new Error("Base URL is required for building the request URL.");
+  }
+  const url = !path ? new URL(baseUrl) : new URL(baseUrl.endsWith("/") && path.startsWith("/") ? baseUrl + path.slice(1) : baseUrl + path);
+  if (query) {
+    Object.entries(query).forEach(([key, value]) => {
+      if (value !== null && value !== void 0) {
+        (Array.isArray(value) ? value : [value]).forEach(
+          (val) => url.searchParams.append(key, val)
+        );
+      }
+    });
+  }
+  return url;
+}
+function parseUrl(url, defaultUrl) {
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return { baseUrl: url };
+  } else {
+    if (!defaultUrl) {
+      throw new Error("Base URL is required for relative URLs.");
+    }
+    const [path, queryString] = url.split("?", 2);
+    const query = {};
+    if (queryString) {
+      new URLSearchParams(queryString).forEach((value, key) => {
+        if (query[key]) {
+          if (Array.isArray(query[key])) {
+            query[key].push(value);
+          } else {
+            query[key] = [query[key], value];
+          }
+        } else {
+          query[key] = value;
+        }
+      });
+    }
+    return { baseUrl: defaultUrl, path, query };
+  }
+}
+class SseStreamParser {
+  constructor(decoder = new TextDecoder("utf-8")) {
+    this.DELEMITER = /\r?\n\r?\n/;
+    this.decoder = decoder;
+  }
+  /**
+   * SSE 스트림을 파싱하는 비동기 제너레이터입니다.
+   */
+  async *parse(reader) {
+    let done = false;
+    let buffer = "";
+    while (!done) {
+      const { value, done: isDone } = await reader.read();
+      done = isDone;
+      if (value) {
+        buffer += this.decoder.decode(value, { stream: true });
+        const blocks = buffer.split(this.DELEMITER);
+        if (blocks.length > 1) {
+          for (let i = 0; i < blocks.length - 1; i++) {
+            const event = this.parseBlock(blocks[i].trim());
+            if (event) {
+              yield event;
+            }
+          }
+          buffer = blocks[blocks.length - 1];
+        }
+      }
+    }
+    if (buffer) {
+      const event = this.parseBlock(buffer.trim());
+      if (event) {
+        yield event;
+      }
+    }
+  }
+  /**
+   * 단일 SSE 이벤트 블록을 파싱합니다.
+   */
+  parseBlock(data) {
+    if (!data) return void 0;
+    const lines = data.split(/\r?\n/).filter((line) => line.trim() !== "");
+    if (lines.length === 0) return void 0;
+    const event = {
+      type: "sse",
+      event: "message",
+      data: ""
+    };
+    for (const line of lines) {
+      const divider = line.indexOf(":");
+      if (divider === -1) continue;
+      const key = line.slice(0, divider).trim();
+      const value = line.slice(divider + 1).trim();
+      if (key === "event") {
+        event.event = value;
+      } else if (key === "data") {
+        event.data = event.data ? `${event.data}
+${value}` : value;
+      } else if (key === "id") {
+        event.id = value;
+      } else if (key === "retry") {
+        const retryMs = parseInt(value, 10);
+        if (!isNaN(retryMs)) {
+          event.retry = retryMs;
+        }
+      }
+    }
+    return event.data ? event : void 0;
+  }
+}
+class JsonStreamParser {
+  constructor(decoder = new TextDecoder("utf-8")) {
+    this.decoder = decoder;
+  }
+  /**
+   * JSON 스트림을 파싱하는 비동기 제너레이터입니다.
+   */
+  async *parse(reader) {
+    let done = false;
+    let buffer = "";
+    while (!done) {
+      const { value, done: isDone } = await reader.read();
+      done = isDone;
+      if (value) {
+        buffer += this.decoder.decode(value, { stream: true });
+        const { objects, remaining } = this.extractCompleteJsonObjects(buffer);
+        buffer = remaining;
+        for (const jsonStr of objects) {
+          yield {
+            type: "json",
+            data: jsonStr.trim()
+          };
+        }
+      }
+    }
+    if (buffer.trim()) {
+      try {
+        const jsonStr = buffer.trim();
+        JSON.parse(jsonStr);
+        yield {
+          type: "json",
+          data: jsonStr
+        };
+      } catch (error) {
+        console.warn("Failed to parse remaining JSON:", buffer, error);
+      }
+    }
+  }
+  /**
+   * 문자열에서 완전한 JSON 객체를 찾아 반환합니다.
+   * @param text 파싱할 텍스트
+   * @returns 완전한 JSON 객체들의 배열과 남은 텍스트
+   */
+  extractCompleteJsonObjects(text) {
+    const objects = [];
+    let current = "";
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let i = 0;
+    while (i < text.length) {
+      const char = text[i];
+      current += char;
+      if (escaped) {
+        escaped = false;
+        i++;
+        continue;
+      }
+      if (char === "\\" && inString) {
+        escaped = true;
+        i++;
+        continue;
+      }
+      if (char === '"') {
+        inString = !inString;
+        i++;
+        continue;
+      }
+      if (!inString) {
+        if (char === "{") {
+          depth++;
+        } else if (char === "}") {
+          depth--;
+          if (depth === 0) {
+            objects.push(current.trim());
+            current = "";
+          }
+        }
+      }
+      i++;
+    }
+    return {
+      objects,
+      remaining: current
+    };
+  }
+}
+class TextStreamParser {
+  constructor(decoder = new TextDecoder("utf-8")) {
+    this.DELEMITER = /\r?\n/;
+    this.decoder = decoder;
+  }
+  /**
+   * 텍스트 스트림을 파싱하는 비동기 제너레이터입니다.
+   */
+  async *parse(reader) {
+    let done = false;
+    let buffer = "";
+    while (!done) {
+      const { value, done: isDone } = await reader.read();
+      done = isDone;
+      if (value) {
+        buffer += this.decoder.decode(value, { stream: true });
+        const lines = buffer.split(this.DELEMITER);
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          yield {
+            type: "text",
+            data: line
+          };
+        }
+      }
+    }
+    if (buffer) {
+      yield {
+        type: "text",
+        data: buffer
+      };
+    }
+  }
+}
+function guessStreamFormat(headers) {
+  const contentType = headers.get("content-type")?.toLowerCase() || "";
+  if (contentType.includes("text/event-stream")) {
+    return "sse";
+  } else if (contentType.includes("application/json") || contentType.includes("application/x-ndjson")) {
+    return "json";
+  } else if (contentType.includes("text/")) {
+    return "text";
+  } else {
+    return "text";
+  }
+}
+function createStreamParser({ format, decoder }) {
+  switch (format) {
+    case "sse":
+      return new SseStreamParser(decoder);
+    case "json":
+      return new JsonStreamParser(decoder);
+    case "text":
+      return new TextStreamParser(decoder);
+    default:
+      throw new Error(`Unsupported stream format: ${format}`);
+  }
+}
 class HttpResponse {
   constructor(response) {
     this._response = response;
   }
-  /**
-   * 응답 상태가 성공(`2xx`)인지 여부를 반환합니다.
-   */
+  /** 응답 상태가 성공(`2xx`)인지 여부를 반환합니다. */
   get ok() {
     return this._response.ok;
   }
-  /**
-   * HTTP 상태 코드를 반환합니다.
-   * @example 200, 404, 500
-   */
-  get status() {
-    return this._response.status;
-  }
-  /**
-   * HTTP 상태 텍스트를 반환합니다.
-   * @example 'OK', 'Not Found'
-   */
-  get statusText() {
-    return this._response.statusText;
-  }
-  /**
-   * 응답의 헤더 정보를 반환합니다.
-   */
-  get headers() {
-    return this._response.headers;
-  }
-  /**
-   * 응답을 보낸 최종 URL을 반환합니다.
-   */
-  get url() {
-    return this._response.url;
-  }
-  /**
-   * 요청이 리디렉션되었는지 여부를 반환합니다.
-   */
+  /** 요청이 리디렉션되었는지 여부를 반환합니다. */
   get redirected() {
     return this._response.redirected;
   }
-  /**
-   * 응답 본문을 텍스트 형식으로 반환합니다.
-   */
+  /** HTTP 상태 코드를 반환합니다. */
+  get status() {
+    return this._response.status;
+  }
+  /** HTTP 상태 텍스트를 반환합니다. */
+  get statusText() {
+    return this._response.statusText;
+  }
+  /** 응답을 보낸 최종 URL을 반환합니다. */
+  get url() {
+    return this._response.url;
+  }
+  /** 응답의 헤더 정보를 반환합니다. */
+  get headers() {
+    return this._response.headers;
+  }
+  /** 응답 본문의 ReadableStream을 반환합니다. */
+  get body() {
+    return this._response.body;
+  }
+  /** 응답 본문을 텍스트 형식으로 반환합니다. */
   text() {
     return this._response.text();
   }
-  /**
-   * 응답 본문을 JSON 형식으로 파싱하여 반환합니다.
-   * @template T 반환할 객체의 타입
-   */
+  /** 응답 본문을 JSON 형식으로 파싱하여 반환합니다. */
   json() {
     return this._response.json();
   }
-  /**
-   * 응답 본문을 ArrayBuffer 형식으로 반환합니다.
-   */
+  /** 응답 본문을 ArrayBuffer 형식으로 반환합니다. */
   arrayBuffer() {
     return this._response.arrayBuffer();
   }
@@ -162,51 +400,31 @@ class HttpResponse {
     return this._response.formData();
   }
   /**
-   * 스트리밍 응답을 처리하는 비동기 제너레이터입니다.
-   * 서버가 전송하는 텍스트 기반 이벤트 스트림을 순차적으로 파싱하여 반환합니다.
+   * 다양한 형식의 스트림을 파싱하는 통합 메서드입니다.
    *
    * @example
    * ```ts
-   * for await (const event of response.stream()) {
-   *   console.log(event.event, event.data);
+   * // 자동 감지
+   * for await (const item of response.stream({ format: 'auto' })) {
+   *   console.log(item);
+   * }
+   *
+   * // 특정 형식 지정
+   * for await (const item of response.stream({ format: 'json' })) {
+   *   console.log(item.data);
    * }
    * ```
-   * @yields TextStreamEvent 형식의 이벤트 객체
-   * @throws 응답 본문 스트림을 사용할 수 없는 경우 오류가 발생합니다.
    */
-  async *stream() {
+  async *stream(options) {
     try {
       const reader = this._response.body?.getReader();
-      const decoder = new TextDecoder("utf-8");
       if (!reader) {
         throw new Error("Response body is not available for streaming.");
       }
-      let done = false;
-      let buffer = "";
-      const delimiter = /\r?\n\r?\n/;
-      while (!done) {
-        const { value, done: isDone } = await reader.read();
-        done = isDone;
-        if (value) {
-          buffer += decoder.decode(value, { stream: true });
-          const blocks = buffer.split(delimiter);
-          if (blocks.length > 1) {
-            for (let i = 0; i < blocks.length - 1; i++) {
-              const event = this.parse(blocks[i].trim());
-              if (event) {
-                yield event;
-              }
-            }
-            buffer = blocks[blocks.length - 1];
-          }
-        }
-      }
-      if (buffer) {
-        const event = this.parse(buffer.trim());
-        if (event) {
-          yield event;
-        }
-      }
+      const decoder = options?.decoder || new TextDecoder("utf-8");
+      const format = !options || options.format === "auto" ? guessStreamFormat(this._response.headers) : options.format;
+      const parser = createStreamParser({ format, decoder });
+      yield* parser.parse(reader);
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         throw new CanceledError(error);
@@ -216,39 +434,24 @@ class HttpResponse {
     }
   }
   /**
-   * 단일 텍스트 블록을 TextStreamEvent로 파싱합니다.
-   * @param data 이벤트 블록 텍스트
-   * @returns 파싱된 TextStreamEvent 객체 또는 undefined
+   * SSE(Server-Sent Events) 스트림을 파싱하는 비동기 제너레이터입니다.
    */
-  parse(data) {
-    if (!data) return void 0;
-    const lines = data.split(/\r?\n/).filter((line) => line.trim() !== "");
-    if (lines.length === 0) return void 0;
-    const event = { event: "message", data: "" };
-    for (const line of lines) {
-      const divider = line.indexOf(":");
-      if (divider === -1) continue;
-      const key = line.slice(0, divider).trim();
-      const value = line.slice(divider + 1).trim();
-      if (key === "event") {
-        event.event = value;
-      } else if (key === "data") {
-        event.data = event.data ? `${event.data}
-${value}` : value;
-      } else if (key === "id") {
-        event.id = value;
-      } else if (key === "retry") {
-        const retryMs = parseInt(value, 10);
-        if (!isNaN(retryMs)) {
-          event.retry = retryMs;
-        }
-      }
-    }
-    if (event.data) {
-      return event;
-    } else {
-      return void 0;
-    }
+  async *streamAsSse(decoder) {
+    yield* this.stream({ format: "sse", decoder });
+  }
+  /**
+   * JSON 스트림을 파싱하는 비동기 제너레이터입니다.
+   * JSON Lines 형태의 스트림 데이터를 처리합니다.
+   */
+  async *streamAsJson(decoder) {
+    yield* this.stream({ format: "json", decoder });
+  }
+  /**
+   * 텍스트 스트림을 파싱하는 비동기 제너레이터입니다.
+   * 줄바꿈 기준으로 텍스트를 분할하여 스트림으로 제공합니다.
+   */
+  async *streamAsText(decoder) {
+    yield* this.stream({ format: "text", decoder });
   }
 }
 class HttpClient {
@@ -266,42 +469,42 @@ class HttpClient {
    * 본문 없이 헤더만 반환됩니다.
    */
   async head(url, cancelToken) {
-    const { baseUrl, path, query } = this.parseUrl(url);
+    const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
     return this.send({ method: "HEAD", baseUrl, path, query }, cancelToken);
   }
   /**
    * GET 요청을 보내 데이터를 조회합니다.
    */
   async get(url, cancelToken) {
-    const { baseUrl, path, query } = this.parseUrl(url);
+    const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
     return this.send({ method: "GET", baseUrl, path, query }, cancelToken);
   }
   /**
    * POST 요청을 보내 서버에 리소스를 생성하거나 데이터를 전송합니다.
    */
   async post(url, body, cancelToken) {
-    const { baseUrl, path, query } = this.parseUrl(url);
+    const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
     return this.send({ method: "POST", baseUrl, path, query, body }, cancelToken);
   }
   /**
    * PUT 요청을 보내 서버 리소스를 전체 교체하거나 생성합니다.
    */
   async put(url, body, cancelToken) {
-    const { baseUrl, path, query } = this.parseUrl(url);
+    const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
     return this.send({ method: "PUT", baseUrl, path, query, body }, cancelToken);
   }
   /**
    * PATCH 요청을 보내 서버 리소스의 일부를 수정합니다.
    */
   async patch(url, body, cancelToken) {
-    const { baseUrl, path, query } = this.parseUrl(url);
+    const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
     return this.send({ method: "PATCH", baseUrl, path, query, body }, cancelToken);
   }
   /**
    * DELETE 요청을 보내 서버 리소스를 삭제합니다.
    */
   async delete(url, cancelToken) {
-    const { baseUrl, path, query } = this.parseUrl(url);
+    const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
     return this.send({ method: "DELETE", baseUrl, path, query }, cancelToken);
   }
   /**
@@ -312,7 +515,11 @@ class HttpClient {
    * @returns 서버로부터의 응답 객체
    */
   async send(request, cancelToken) {
-    const url = this.buildUrl(request.baseUrl ?? this.baseUrl, request.path, request.query);
+    const url = buildUrl({
+      baseUrl: request.baseUrl ?? this.baseUrl,
+      path: request.path,
+      query: request.query
+    });
     const headers = new Headers(request.headers);
     if (this.headers) {
       Object.entries(this.headers).forEach(([key, value]) => {
@@ -365,10 +572,14 @@ class HttpClient {
    *
    * @param request 업로드 요청 객체
    * @param cancelToken 요청 취소 토큰
-   * @returns 업로드 이벤트 스트림
+   * @returns 업로드 응답 스트림
    */
   async *upload(request, cancelToken) {
-    const url = this.buildUrl(request.baseUrl ?? this.baseUrl, request.path, request.query);
+    const url = buildUrl({
+      baseUrl: request.baseUrl ?? this.baseUrl,
+      path: request.path,
+      query: request.query
+    });
     const xhr = new XMLHttpRequest();
     xhr.open(request.method, url, true);
     const timeout = request.timeout ?? this.timeout;
@@ -483,7 +694,11 @@ class HttpClient {
    * @param request 다운로드 요청 객체
    */
   download(request) {
-    const url = this.buildUrl(request.baseUrl ?? this.baseUrl, request.path, request.query);
+    const url = buildUrl({
+      baseUrl: request.baseUrl ?? this.baseUrl,
+      path: request.path,
+      query: request.query
+    });
     const a = document.createElement("a");
     a.style.display = "none";
     a.href = url.toString();
@@ -491,48 +706,6 @@ class HttpClient {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-  }
-  /**
-   * 요청에 사용할 최종 URL을 생성합니다.
-   *
-   * @param baseUrl 기본 URL
-   * @param path 추가 경로
-   * @param query 쿼리 파라미터
-   * @returns 완성된 URL 객체
-   */
-  buildUrl(baseUrl, path, query) {
-    if (!baseUrl) {
-      throw new Error("Base URL is required for building the request URL.");
-    }
-    const url = !path ? new URL(baseUrl) : new URL(baseUrl.endsWith("/") && path.startsWith("/") ? baseUrl + path.slice(1) : baseUrl + path);
-    if (query) {
-      Object.entries(query).forEach(([key, value]) => {
-        if (value !== null || value !== void 0) {
-          (Array.isArray(value) ? value : [value]).forEach(
-            (val) => url.searchParams.append(key, val)
-          );
-        }
-      });
-    }
-    return url;
-  }
-  /**
-   * 주어진 URL 문자열을 baseUrl, path, query로 분해합니다.
-   *
-   * @param url 전체 URL 또는 상대 경로 URL
-   * @returns URL 구성 요소
-   */
-  parseUrl(url) {
-    if (url.startsWith("http://") || url.startsWith("https://")) {
-      return { baseUrl: url };
-    } else {
-      if (!this.baseUrl) {
-        throw new Error("Base URL is required for relative URLs.");
-      }
-      const [path, queryString] = url.split("?", 2);
-      const query = queryString ? Object.fromEntries(new URLSearchParams(queryString)) : void 0;
-      return { baseUrl: this.baseUrl, path, query };
-    }
   }
 }
 exports.CancelToken = CancelToken;

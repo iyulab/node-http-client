@@ -47,15 +47,10 @@ export declare class CancelToken {
 }
 
 /**
- * 업로드 진행 상황, 성공, 실패 이벤트를 포함하는 타입입니다.
- */
-export declare type FileUploadEvent = FileUploadProgressEvent | FileUploadSuccessEvent | FileUploadFailureEvent;
-
-/**
- * 파일 업로드가 실패했을 때 발생하는 이벤트입니다.
+ * 파일 업로드가 실패했을 때의 응답입니다.
  * 상태 코드가 없을 수도 있으며, 메시지를 통해 원인을 전달합니다.
  */
-export declare interface FileUploadFailureEvent {
+export declare interface FileUploadFailureResponse {
     type: 'failure';
     /**
      * HTTP 응답 상태 코드입니다.
@@ -69,10 +64,10 @@ export declare interface FileUploadFailureEvent {
 }
 
 /**
- * 파일 업로드 진행 중 발생하는 이벤트입니다.
+ * 파일 업로드 진행 중 발생하는 응답입니다.
  * 업로드된 바이트 수, 전체 크기, 진행률을 포함합니다.
  */
-export declare interface FileUploadProgressEvent {
+export declare interface FileUploadProgressResponse {
     type: 'progress';
     /**
      * 현재까지 업로드된 바이트 수입니다.
@@ -90,10 +85,15 @@ export declare interface FileUploadProgressEvent {
 }
 
 /**
- * 파일 업로드가 성공적으로 완료되었을 때 발생하는 이벤트입니다.
+ * 업로드 진행 상황, 성공, 실패 응답을 포함하는 타입입니다.
+ */
+export declare type FileUploadResponse = FileUploadProgressResponse | FileUploadSuccessResponse | FileUploadFailureResponse;
+
+/**
+ * 파일 업로드가 성공적으로 완료되었을 때의 응답입니다.
  * 서버의 응답 상태 코드, 헤더, 본문 등을 포함할 수 있습니다.
  */
-export declare interface FileUploadSuccessEvent {
+export declare interface FileUploadSuccessResponse {
     type: 'success';
     /**
      * HTTP 응답 상태 코드입니다.
@@ -171,9 +171,9 @@ export declare class HttpClient {
      *
      * @param request 업로드 요청 객체
      * @param cancelToken 요청 취소 토큰
-     * @returns 업로드 이벤트 스트림
+     * @returns 업로드 응답 스트림
      */
-    upload(request: HttpUploadRequest, cancelToken?: CancelToken): AsyncGenerator<FileUploadEvent>;
+    upload(request: HttpUploadRequest, cancelToken?: CancelToken): AsyncGenerator<FileUploadResponse>;
     /**
      * 브라우저의 기본 다운로드 동작을 활용하여 파일을 다운로드합니다.
      * (a 태그를 임시로 생성 후 클릭)
@@ -181,22 +181,6 @@ export declare class HttpClient {
      * @param request 다운로드 요청 객체
      */
     download(request: HttpDownloadRequest): void;
-    /**
-     * 요청에 사용할 최종 URL을 생성합니다.
-     *
-     * @param baseUrl 기본 URL
-     * @param path 추가 경로
-     * @param query 쿼리 파라미터
-     * @returns 완성된 URL 객체
-     */
-    private buildUrl;
-    /**
-     * 주어진 URL 문자열을 baseUrl, path, query로 분해합니다.
-     *
-     * @param url 전체 URL 또는 상대 경로 URL
-     * @returns URL 구성 요소
-     */
-    private parseUrl;
 }
 
 /**
@@ -320,44 +304,25 @@ export declare interface HttpRequest extends HttpClientConfig {
 export declare class HttpResponse {
     private readonly _response;
     constructor(response: Response);
-    /**
-     * 응답 상태가 성공(`2xx`)인지 여부를 반환합니다.
-     */
+    /** 응답 상태가 성공(`2xx`)인지 여부를 반환합니다. */
     get ok(): boolean;
-    /**
-     * HTTP 상태 코드를 반환합니다.
-     * @example 200, 404, 500
-     */
-    get status(): number;
-    /**
-     * HTTP 상태 텍스트를 반환합니다.
-     * @example 'OK', 'Not Found'
-     */
-    get statusText(): string;
-    /**
-     * 응답의 헤더 정보를 반환합니다.
-     */
-    get headers(): Headers;
-    /**
-     * 응답을 보낸 최종 URL을 반환합니다.
-     */
-    get url(): string;
-    /**
-     * 요청이 리디렉션되었는지 여부를 반환합니다.
-     */
+    /** 요청이 리디렉션되었는지 여부를 반환합니다. */
     get redirected(): boolean;
-    /**
-     * 응답 본문을 텍스트 형식으로 반환합니다.
-     */
+    /** HTTP 상태 코드를 반환합니다. */
+    get status(): number;
+    /** HTTP 상태 텍스트를 반환합니다. */
+    get statusText(): string;
+    /** 응답을 보낸 최종 URL을 반환합니다. */
+    get url(): string;
+    /** 응답의 헤더 정보를 반환합니다. */
+    get headers(): Headers;
+    /** 응답 본문의 ReadableStream을 반환합니다. */
+    get body(): ReadableStream<Uint8Array> | null;
+    /** 응답 본문을 텍스트 형식으로 반환합니다. */
     text(): Promise<string>;
-    /**
-     * 응답 본문을 JSON 형식으로 파싱하여 반환합니다.
-     * @template T 반환할 객체의 타입
-     */
+    /** 응답 본문을 JSON 형식으로 파싱하여 반환합니다. */
     json<T>(): Promise<T>;
-    /**
-     * 응답 본문을 ArrayBuffer 형식으로 반환합니다.
-     */
+    /** 응답 본문을 ArrayBuffer 형식으로 반환합니다. */
     arrayBuffer(): Promise<ArrayBuffer>;
     /**
      * 응답 본문을 Uint8Array로 변환하여 반환합니다.
@@ -375,25 +340,36 @@ export declare class HttpResponse {
      */
     formData(): Promise<FormData>;
     /**
-     * 스트리밍 응답을 처리하는 비동기 제너레이터입니다.
-     * 서버가 전송하는 텍스트 기반 이벤트 스트림을 순차적으로 파싱하여 반환합니다.
+     * 다양한 형식의 스트림을 파싱하는 통합 메서드입니다.
      *
      * @example
      * ```ts
-     * for await (const event of response.stream()) {
-     *   console.log(event.event, event.data);
+     * // 자동 감지
+     * for await (const item of response.stream({ format: 'auto' })) {
+     *   console.log(item);
+     * }
+     *
+     * // 특정 형식 지정
+     * for await (const item of response.stream({ format: 'json' })) {
+     *   console.log(item.data);
      * }
      * ```
-     * @yields TextStreamEvent 형식의 이벤트 객체
-     * @throws 응답 본문 스트림을 사용할 수 없는 경우 오류가 발생합니다.
      */
-    stream(): AsyncGenerator<TextStreamEvent>;
+    stream(options?: StreamOptions): AsyncGenerator<StreamResponse>;
     /**
-     * 단일 텍스트 블록을 TextStreamEvent로 파싱합니다.
-     * @param data 이벤트 블록 텍스트
-     * @returns 파싱된 TextStreamEvent 객체 또는 undefined
+     * SSE(Server-Sent Events) 스트림을 파싱하는 비동기 제너레이터입니다.
      */
-    private parse;
+    streamAsSse(decoder?: TextDecoder): AsyncGenerator<SseStreamResponse>;
+    /**
+     * JSON 스트림을 파싱하는 비동기 제너레이터입니다.
+     * JSON Lines 형태의 스트림 데이터를 처리합니다.
+     */
+    streamAsJson(decoder?: TextDecoder): AsyncGenerator<JsonStreamResponse>;
+    /**
+     * 텍스트 스트림을 파싱하는 비동기 제너레이터입니다.
+     * 줄바꿈 기준으로 텍스트를 분할하여 스트림으로 제공합니다.
+     */
+    streamAsText(decoder?: TextDecoder): AsyncGenerator<TextStreamResponse>;
 }
 
 /**
@@ -424,12 +400,25 @@ export declare interface HttpUploadRequest extends HttpClientConfig {
 }
 
 /**
- * 텍스트 스트림 이벤트를 나타내는 인터페이스입니다.
+ * JSON 스트림 응답을 나타내는 인터페이스입니다.
+ * JSON 형태의 데이터가 문자열로 제공됩니다.
+ */
+export declare interface JsonStreamResponse {
+    type: 'json';
+    /**
+     * JSON 문자열입니다.
+     */
+    data: string;
+}
+
+/**
+ * SSE(Server-Sent Events) 스트림 응답을 나타내는 인터페이스입니다.
  * 이 인터페이스는 Server-Sent Events(SSE) 형식의 이벤트 구조를 기반으로 합니다.
  *
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format | MDN - Using Server-Sent Events}
  */
-export declare interface TextStreamEvent {
+export declare interface SseStreamResponse {
+    type: 'sse';
     /**
      * 이벤트 유형을 나타냅니다.
      * @default "message"
@@ -450,6 +439,46 @@ export declare interface TextStreamEvent {
      * 서버가 클라이언트에 재연결을 시도하도록 지시하는 시간(ms)입니다.
      */
     retry?: number;
+}
+
+/** 스트림 형식을 나타내는 타입입니다. */
+export declare type StreamFormat = 'json' | 'text' | 'sse' | 'auto';
+
+/** 스트림 파서 옵션을 나타내는 객체입니다. */
+export declare interface StreamOptions {
+    /**
+     * 스트림 형식입니다. 'auto'로 설정하면 응답 헤더를 기반으로 형식을 감지합니다.
+     */
+    format: StreamFormat;
+    /**
+     * 텍스트 디코더입니다. 기본값은 UTF-8 디코더입니다.
+     */
+    decoder?: TextDecoder;
+}
+
+/** 스트림 파서를 나타내는 인터페이스입니다.*/
+export declare interface StreamParser<T extends StreamResponse> {
+    /**
+     * 스트림을 파싱하는 비동기 제너레이터입니다.
+     */
+    parse(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncGenerator<T>;
+}
+
+/**
+ * 모든 스트림 응답 타입의 유니온 타입입니다.
+ */
+export declare type StreamResponse = (TextStreamResponse | JsonStreamResponse | SseStreamResponse);
+
+/**
+ * 텍스트 스트림 응답을 나타내는 인터페이스입니다.
+ * 줄바꿈을 기준으로 분할되어 텍스트 데이터가 제공됩니다.
+ */
+export declare interface TextStreamResponse {
+    type: 'text';
+    /**
+     * 텍스트 라인입니다.
+     */
+    data: string;
 }
 
 export { }

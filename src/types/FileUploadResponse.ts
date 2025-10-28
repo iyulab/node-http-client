@@ -1,16 +1,16 @@
 /**
- * 업로드 진행 상황, 성공, 실패 이벤트를 포함하는 타입입니다.
+ * 업로드 진행 상황, 성공, 실패 응답을 포함하는 타입입니다.
  */
-export type FileUploadEvent =
-  | FileUploadProgressEvent
-  | FileUploadSuccessEvent
-  | FileUploadFailureEvent;
+export type FileUploadResponse =
+  | FileUploadProgressResponse
+  | FileUploadSuccessResponse
+  | FileUploadFailureResponse;
 
 /**
- * 파일 업로드 진행 중 발생하는 이벤트입니다.
+ * 파일 업로드 진행 중 발생하는 응답입니다.
  * 업로드된 바이트 수, 전체 크기, 진행률을 포함합니다.
  */
-export interface FileUploadProgressEvent {
+export interface FileUploadProgressResponse {
   type: 'progress';
 
   /**
@@ -31,10 +31,10 @@ export interface FileUploadProgressEvent {
 }
 
 /**
- * 파일 업로드가 성공적으로 완료되었을 때 발생하는 이벤트입니다.
+ * 파일 업로드가 성공적으로 완료되었을 때의 응답입니다.
  * 서버의 응답 상태 코드, 헤더, 본문 등을 포함할 수 있습니다.
  */
-export interface FileUploadSuccessEvent {
+export interface FileUploadSuccessResponse {
   type: 'success';
 
   /**
@@ -57,10 +57,10 @@ export interface FileUploadSuccessEvent {
 }
 
 /**
- * 파일 업로드가 실패했을 때 발생하는 이벤트입니다.
+ * 파일 업로드가 실패했을 때의 응답입니다.
  * 상태 코드가 없을 수도 있으며, 메시지를 통해 원인을 전달합니다.
  */
-export interface FileUploadFailureEvent {
+export interface FileUploadFailureResponse {
   type: 'failure';
 
   /**

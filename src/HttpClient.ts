@@ -1,9 +1,8 @@
-import type { HttpClientConfig } from "./HttpClientConfig";
-import type { HttpRequest, HttpUploadRequest, HttpDownloadRequest } from "./HttpRequest";
-import type { FileUploadEvent } from "./FileUploadEvent";
+import type { HttpClientConfig, HttpRequest, HttpUploadRequest, HttpDownloadRequest, FileUploadResponse } from "./types";
 import { HttpResponse } from "./HttpResponse";
 import { CancelToken } from "./CancelToken";
 import { CanceledError } from "./CanceledError";
+import { buildUrl, parseUrl } from "./internals/index.js";
 
 /**
  * HTTP 클라이언트를 나타내는 클래스입니다.
@@ -40,7 +39,7 @@ export class HttpClient {
    * 본문 없이 헤더만 반환됩니다.
    */
   public async head(url: string, cancelToken?: CancelToken): Promise<HttpResponse> {
-    const { baseUrl, path, query } = this.parseUrl(url);
+    const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
     return this.send({ method: 'HEAD', baseUrl, path, query }, cancelToken);
   }
 
@@ -48,7 +47,7 @@ export class HttpClient {
    * GET 요청을 보내 데이터를 조회합니다.
    */
   public async get(url: string, cancelToken?: CancelToken): Promise<HttpResponse> {
-    const { baseUrl, path, query } = this.parseUrl(url);
+    const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
     return this.send({ method: 'GET', baseUrl, path, query }, cancelToken);
   }
 
@@ -56,7 +55,7 @@ export class HttpClient {
    * POST 요청을 보내 서버에 리소스를 생성하거나 데이터를 전송합니다.
    */
   public async post(url: string, body: any, cancelToken?: CancelToken): Promise<HttpResponse> {
-    const { baseUrl, path, query } = this.parseUrl(url);
+    const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
     return this.send({ method: 'POST', baseUrl, path, query, body }, cancelToken);
   }
 
@@ -64,7 +63,7 @@ export class HttpClient {
    * PUT 요청을 보내 서버 리소스를 전체 교체하거나 생성합니다.
    */
   public async put(url: string, body: any, cancelToken?: CancelToken): Promise<HttpResponse> {
-    const { baseUrl, path, query } = this.parseUrl(url);
+    const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
     return this.send({ method: 'PUT', baseUrl, path, query, body }, cancelToken);
   }
 
@@ -72,7 +71,7 @@ export class HttpClient {
    * PATCH 요청을 보내 서버 리소스의 일부를 수정합니다.
    */
   public async patch(url: string, body: any, cancelToken?: CancelToken): Promise<HttpResponse> {
-    const { baseUrl, path, query } = this.parseUrl(url);
+    const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
     return this.send({ method: 'PATCH', baseUrl, path, query, body }, cancelToken);
   }
 
@@ -80,7 +79,7 @@ export class HttpClient {
    * DELETE 요청을 보내 서버 리소스를 삭제합니다.
    */
   public async delete(url: string, cancelToken?: CancelToken): Promise<HttpResponse> {
-    const { baseUrl, path, query } = this.parseUrl(url);
+    const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
     return this.send({ method: 'DELETE', baseUrl, path, query }, cancelToken);
   }
 
@@ -93,7 +92,11 @@ export class HttpClient {
    */
   public async send(request: HttpRequest, cancelToken?: CancelToken): Promise<HttpResponse> {
     // 1. URL 생성
-    const url = this.buildUrl(request.baseUrl ?? this.baseUrl, request.path, request.query);
+    const url = buildUrl({
+      baseUrl: request.baseUrl ?? this.baseUrl, 
+      path: request.path, 
+      query: request.query
+    });
 
     // 2. Headers 설정
     const headers = new Headers(request.headers);
@@ -160,11 +163,15 @@ export class HttpClient {
    *
    * @param request 업로드 요청 객체
    * @param cancelToken 요청 취소 토큰
-   * @returns 업로드 이벤트 스트림
+   * @returns 업로드 응답 스트림
    */
-  public async *upload(request: HttpUploadRequest, cancelToken?: CancelToken): AsyncGenerator<FileUploadEvent> {
+  public async *upload(request: HttpUploadRequest, cancelToken?: CancelToken): AsyncGenerator<FileUploadResponse> {
     // 1. URL 생성
-    const url = this.buildUrl(request.baseUrl ?? this.baseUrl, request.path, request.query);
+    const url = buildUrl({
+      baseUrl: request.baseUrl ?? this.baseUrl,
+      path: request.path, 
+      query: request.query
+    });
     
     // 2. XMLHttpRequest 객체 생성
     const xhr = new XMLHttpRequest();
@@ -211,8 +218,8 @@ export class HttpClient {
     }
     
     // 7. Promise를 사용하여 이벤트를 처리
-    const events: ((res: FileUploadEvent) => void)[] = [];
-    const awaitEvent = () => new Promise<FileUploadEvent>((resolve) => {
+    const events: ((res: FileUploadResponse) => void)[] = [];
+    const awaitEvent = () => new Promise<FileUploadResponse>((resolve) => {
       events.push(resolve); // resolve 함수가 호출되면 현재 이벤트가 처리됨
     });
 
@@ -308,7 +315,12 @@ export class HttpClient {
    * @param request 다운로드 요청 객체
    */
   public download(request: HttpDownloadRequest): void {
-    const url = this.buildUrl(request.baseUrl ?? this.baseUrl, request.path, request.query);
+    const url = buildUrl({
+      baseUrl: request.baseUrl ?? this.baseUrl,
+      path: request.path, 
+      query: request.query
+    });
+
     const a = document.createElement('a');
     a.style.display = 'none';
     a.href = url.toString();
@@ -317,60 +329,5 @@ export class HttpClient {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-  }
-
-  /**
-   * 요청에 사용할 최종 URL을 생성합니다.
-   *
-   * @param baseUrl 기본 URL
-   * @param path 추가 경로
-   * @param query 쿼리 파라미터
-   * @returns 완성된 URL 객체
-   */
-  private buildUrl(baseUrl?: string, path?: string, query?: Record<string, string | string[]>): URL {
-    // 1. base URL이 없으면 오류를 발생시킵니다.
-    if (!baseUrl) {
-      throw new Error("Base URL is required for building the request URL.");
-    }
-
-    // 2. URL을 생성합니다.
-    const url = !path 
-    ? new URL(baseUrl)
-    : new URL(baseUrl.endsWith('/') && path.startsWith('/')
-    ? baseUrl + path.slice(1)
-    : baseUrl + path);
-
-    // 3. 쿼리 파라미터를 추가합니다.
-    if (query) {
-      Object.entries(query).forEach(([key, value]) => {
-        if (value !== null || value !== undefined) {
-          (Array.isArray(value) ? value : [value]).forEach(val =>
-            url.searchParams.append(key, val)
-          );
-        }
-      });
-    }
-
-    return url;
-  }
-
-  /**
-   * 주어진 URL 문자열을 baseUrl, path, query로 분해합니다.
-   *
-   * @param url 전체 URL 또는 상대 경로 URL
-   * @returns URL 구성 요소
-   */
-  private parseUrl(url: string): { baseUrl: string; path?: string; query?: Record<string, string> } {
-    if (url.startsWith("http://") || url.startsWith("https://")) {
-      return { baseUrl: url };
-    } else {
-      if (!this.baseUrl) {
-        throw new Error("Base URL is required for relative URLs.");
-      }
-
-      const [path, queryString] = url.split("?", 2);
-      const query = queryString ? Object.fromEntries(new URLSearchParams(queryString)) : undefined;
-      return { baseUrl: this.baseUrl, path: path, query: query };
-    }
   }
 }

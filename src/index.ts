@@ -1,9 +1,8 @@
-export * from './CanceledError';
-export * from './CancelToken';
-export * from './HttpClient';
-export * from './HttpClientConfig';
-export * from './HttpMethod';
-export * from './HttpRequest';
-export * from './HttpResponse';
-export * from './TextStreamEvent';
-export * from './FileUploadEvent';
+// Types
+export * from './types';
+
+// Classes and utilities
+export { CanceledError } from './CanceledError';
+export { CancelToken } from './CancelToken';
+export { HttpClient } from './HttpClient';
+export { HttpResponse } from './HttpResponse';
