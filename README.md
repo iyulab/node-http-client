@@ -8,7 +8,7 @@ Supports general requests, file upload/download, and multiple stream response fo
 - ✅ RESTful HTTP request support (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`)
 - 📤 File upload support (with progress tracking)
 - 📥 File download support (using `<a>` tag)
-- 🔁 Stream response support (SSE, JSON, Text with auto-detection)
+- 🔁 Stream response support (SSE, JSON Object, Text with auto-detection)
 - ❌ Request cancellation and timeout control (`CancelToken`)
 
 ---
@@ -80,7 +80,7 @@ for await (const event of response.streamAsSse()) {
   console.log(`[${event.event}]`, event.data);
 }
 
-// JSON stream
+// JSON Object stream
 for await (const json of response.streamAsJson()) {
   console.log(JSON.parse(json.data));
 }

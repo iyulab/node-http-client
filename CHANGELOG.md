@@ -1,5 +1,8 @@
 # Changelog
 
+## [Unreleased]
+- Improved JSON Object stream parsing with error handling
+
 ## 0.5.0 (October 28, 2025)
 - Added comprehensive stream parsing support (SSE, JSON, Text) with auto-detection
 - Unified stream response interfaces with type discrimination

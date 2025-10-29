@@ -26,14 +26,14 @@ export class JsonStreamParser implements StreamParser<JsonStreamResponse> {
         buffer += this.decoder.decode(value, { stream: true });
 
         // 완전한 JSON 객체들을 추출
-        const { objects, remaining } = this.extractCompleteJsonObjects(buffer);
+        const { objects, remaining } = this.extractJsonObjects(buffer);
         buffer = remaining;
 
         // 각 완전한 JSON 객체를 파싱하여 yield
         for (const jsonStr of objects) {
           yield {
             type: 'json',
-            data: jsonStr.trim()
+            data: jsonStr
           };
         }
       }
@@ -59,7 +59,7 @@ export class JsonStreamParser implements StreamParser<JsonStreamResponse> {
    * @param text 파싱할 텍스트
    * @returns 완전한 JSON 객체들의 배열과 남은 텍스트
    */
-  private extractCompleteJsonObjects(text: string): { objects: string[], remaining: string } {
+  private extractJsonObjects(text: string): { objects: string[], remaining: string } {
     const objects: string[] = [];
     let current = '';
     let depth = 0;
@@ -69,6 +69,24 @@ export class JsonStreamParser implements StreamParser<JsonStreamResponse> {
 
     while (i < text.length) {
       const char = text[i];
+
+      // JSON 객체나 배열이 시작되지 않았다면 시작 문자를 찾을 때까지 스킵
+      if (depth < 1) {
+        // 시작 문자를 찾음
+        if ((char === '{' || char === '[') && !inString) {
+          current += char;
+          depth = 1;
+        }
+        // 문자열 내부 상태 토글
+        if (char === '"' && i > 0 && text[i - 1] !== '\\') {
+          inString = !inString;
+        }
+
+        i++;
+        continue;
+      }
+
+      // Json이 시작되었다면 문자를 추가
       current += char;
 
       if (escaped) {
@@ -90,22 +108,30 @@ export class JsonStreamParser implements StreamParser<JsonStreamResponse> {
       }
 
       if (!inString) {
-        if (char === '{') {
+        if (char === '{' || char === '[') {
           depth++;
-        } else if (char === '}') {
+        } else if (char === '}' || char === ']') {
           depth--;
-          
-          // 완전한 JSON 객체가 완성됨
-          if (depth === 0) {
-            objects.push(current.trim());
-            current = '';
-          }
         }
+      }
+
+      // 완전한 JSON 객체/배열이 완성됨
+      if (depth === 0) {
+        const jsonStr = current.trim();
+        // 유효한 JSON인지 검증 후 추가
+        try {
+          JSON.parse(jsonStr);
+          objects.push(jsonStr);
+        } catch(error) {
+          console.warn("failed to parse jsonString in http stream parser", error);
+        }
+        current = '';
       }
 
       i++;
     }
 
+    // 완성된 JsonStr 및 남은 텍스트 반환
     return {
       objects,
       remaining: current
