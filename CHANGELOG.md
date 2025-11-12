@@ -1,7 +1,11 @@
 # Changelog
 
 ## [Unreleased]
+- 
+
+## 0.6.0 (November 12, 2025)
 - Improved JSON Object stream parsing with error handling
+- Removed commonjs build output, now only ESM is supported
 
 ## 0.5.0 (October 28, 2025)
 - Added comprehensive stream parsing support (SSE, JSON, Text) with auto-detection
