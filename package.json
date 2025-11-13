@@ -23,7 +23,7 @@
     "LICENSE"
   ],
   "type": "module",
-  "types": "src/index.d.ts",
+  "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./src/index.d.ts",
@@ -35,7 +35,6 @@
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
-    "tslib": "^2.8.1",
     "typescript": "^5.9.3",
     "vite": "^7.2.2",
     "vite-plugin-dts": "^4.5.4"

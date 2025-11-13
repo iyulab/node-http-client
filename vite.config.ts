@@ -1,4 +1,4 @@
-import { defineConfig, PluginOption } from 'vite';
+import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import dts from 'vite-plugin-dts';
 
@@ -17,10 +17,8 @@ export default defineConfig({
   },
   plugins: [
     dts({
-      outDir: 'dist',
-      tsconfigPath: resolve(__dirname, 'tsconfig.json'),
+      include: ['src/**/*'],
       rollupTypes: true,
-      insertTypesEntry: true,
-    }) as PluginOption,
+    }),
   ]
 });
