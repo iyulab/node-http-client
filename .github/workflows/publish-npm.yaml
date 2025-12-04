@@ -1,0 +1,97 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'v*' # 태그 푸시 시에만 동작
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. 태그에서 버전 문자열 추출 (v1.2.3 -> 1.2.3)
+      - name: Extract version from tag
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          echo "TAG_VERSION=$TAG_VERSION" >> $GITHUB_ENV
+
+      # 2. Node.js 설정
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      # 3. 의존성 설치
+      - name: Install deps
+        run: npm install
+
+      # 4. package.json.version을 TAG_VERSION으로 맞춰주기
+      - name: Sync package.json version with tag
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+
+          const pkgPath = path.join(process.cwd(), 'package.json');
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+          const tagVersion = process.env.TAG_VERSION;
+
+          if (!tagVersion) {
+            console.error('TAG_VERSION env is not set');
+            process.exit(1);
+          }
+
+          if (pkg.version === tagVersion) {
+            console.log(`package.json version already ${tagVersion}`);
+          } else {
+            console.log(`Update package.json version: ${pkg.version} -> ${tagVersion}`);
+            pkg.version = tagVersion;
+            fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
+          }
+          NODE
+
+      # 5. exports 안의 경로 src/ -> dist/ 로 치환
+      - name: Rewrite exports src -> dist
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+
+          const pkgPath = path.join(process.cwd(), 'package.json');
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+
+          function replaceSrcWithDist(value) {
+            if (typeof value === 'string') {
+              // ./src/ 또는 src/로 시작하면 ./dist/로 변경
+              return value.replace(/^(\.\/)?src\//, './dist/');
+            }
+            if (Array.isArray(value)) {
+              return value.map(replaceSrcWithDist);
+            }
+            if (value && typeof value === 'object') {
+              for (const key of Object.keys(value)) {
+                value[key] = replaceSrcWithDist(value[key]);
+              }
+            }
+            return value;
+          }
+
+          if (pkg.exports) {
+            pkg.exports = replaceSrcWithDist(pkg.exports);
+          }
+
+          fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
+          NODE
+
+      # 6. 빌드
+      - name: Build
+        run: npm run build
+
+      # 7. 퍼블리시
+      - name: Publish
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
