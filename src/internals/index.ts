@@ -4,5 +4,6 @@
  * @internal
  */
 
+export * from './error-functions.js';
 export * from './url-functions.js';
 export * from './stream-functions.js';

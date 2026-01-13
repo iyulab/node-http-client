@@ -2,7 +2,7 @@ import type { HttpClientConfig, HttpRequest, HttpUploadRequest, HttpDownloadRequ
 import { HttpResponse } from "./HttpResponse";
 import { CancelToken } from "./CancelToken";
 import { CanceledError } from "./CanceledError";
-import { buildUrl, parseUrl } from "./internals/index.js";
+import { buildUrl, isCanceledError, parseUrl } from "./internals/index.js";
 
 /**
  * HTTP 클라이언트를 나타내는 클래스입니다.
@@ -144,7 +144,7 @@ export class HttpClient {
       // 6. 응답 처리
       return new HttpResponse(res);
     } catch (error: any) {
-      if (error instanceof Error && error.name === "AbortError") {
+      if (isCanceledError(error)) {
         throw new CanceledError(error); // 요청이 취소된 경우
       } else {
         throw error; // 다른 오류는 다시 던집니다.

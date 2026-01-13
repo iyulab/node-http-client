@@ -1,5 +1,5 @@
 import { CanceledError } from "./CanceledError";
-import { guessStreamFormat, createStreamParser } from "./internals";
+import { guessStreamFormat, createStreamParser, isCanceledError } from "./internals/index.js";
 import type { 
   SseStreamResponse, 
   JsonStreamResponse, 
@@ -125,7 +125,7 @@ export class HttpResponse {
       
       yield* parser.parse(reader);
     } catch (error: any) {
-      if (error instanceof Error && error.name === "AbortError") {
+      if (isCanceledError(error)) {
         throw new CanceledError(error);
       } else {
         throw error;
