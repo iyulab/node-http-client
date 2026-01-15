@@ -1,12 +1,8 @@
 import { CanceledError } from "./CanceledError";
-import { guessStreamFormat, createStreamParser, isCanceledError } from "./internals/index.js";
-import type { 
-  SseStreamResponse, 
-  JsonStreamResponse, 
-  TextStreamResponse, 
-  StreamResponse, 
-  StreamOptions 
-} from "./types";
+import { isCanceledError } from "./internals/error-helpers";
+import { guessStreamFormat, createStreamParser } from "./internals/stream-helpers.js";
+import type { StreamOptions } from "./types/StreamParser";
+import type { StreamResponse, SseStreamResponse, JsonStreamResponse, TextStreamResponse } from "./types/StreamResponse";
 
 /**
  * HTTP 응답을 나타내는 클래스입니다.

@@ -1,5 +1,7 @@
-import { StreamFormat, StreamOptions } from "../types";
-import { JsonStreamParser, SseStreamParser, TextStreamParser } from "../parsers";
+import { StreamFormat, StreamOptions } from "../types/StreamParser";
+import { TextStreamParser } from "../parsers/TextStreamParser";
+import { JsonStreamParser } from "../parsers/JsonStreamParser";
+import { SseStreamParser } from "../parsers/SseStreamParser";
 
 /**
  * 응답 헤더를 기반으로 자동으로 형식을 감지합니다.

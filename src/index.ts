@@ -1,8 +1,12 @@
-// Types
-export * from './types';
+// type exports
+export type * from './types/HttpClientConfig';
+export type * from './types/HttpRequest';
+export type * from './types/FileUploadResponse';
+export type * from './types/StreamResponse';
+export type * from './types/StreamParser';
 
-// Classes and utilities
-export { CanceledError } from './CanceledError';
-export { CancelToken } from './CancelToken';
+// main exports
 export { HttpClient } from './HttpClient';
 export { HttpResponse } from './HttpResponse';
+export { CancelToken } from './CancelToken';
+export { CanceledError } from './CanceledError';

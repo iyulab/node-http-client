@@ -1,7 +1,11 @@
 # Changelog
 
 ## [Unreleased]
-- 
+- Changed build system from Rollup to Vite
+- Updated dependencies: @types/node, typescript, vite
+- Migrated export configuration to use src files directly
+- Updated workflow configuration to publish-npm.yml
+- Various minor updates and improvements
 
 ## 0.6.0 (November 12, 2025)
 - Improved JSON Object stream parsing with error handling

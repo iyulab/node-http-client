@@ -1,8 +1,11 @@
-import type { HttpClientConfig, HttpRequest, HttpUploadRequest, HttpDownloadRequest, FileUploadResponse } from "./types";
+import type { HttpRequest, HttpUploadRequest, HttpDownloadRequest } from "./types/HttpRequest";
+import type { FileUploadResponse } from "./types/FileUploadResponse";
+import type { HttpClientConfig } from "./types/HttpClientConfig";
 import { HttpResponse } from "./HttpResponse";
 import { CancelToken } from "./CancelToken";
 import { CanceledError } from "./CanceledError";
-import { buildUrl, isCanceledError, parseUrl } from "./internals/index.js";
+import { isCanceledError } from "./internals/error-helpers";
+import { buildUrl, parseUrl } from "./internals/url-helpers";
 
 /**
  * HTTP 클라이언트를 나타내는 클래스입니다.

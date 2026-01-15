@@ -1,4 +1,5 @@
-import type { TextStreamResponse, StreamParser } from '../types';
+import type { StreamParser } from '../types/StreamParser';
+import type { TextStreamResponse } from '../types/StreamResponse';
 
 /**
  * 텍스트 스트림 파서 클래스입니다.

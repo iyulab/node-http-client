@@ -1,4 +1,5 @@
-import type { JsonStreamResponse, StreamParser } from '../types';
+import type { StreamParser } from '../types/StreamParser';
+import type { JsonStreamResponse } from '../types/StreamResponse';
 
 /**
  * JSON 스트림 파서 클래스입니다.

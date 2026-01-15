@@ -1,4 +1,5 @@
-import type { SseStreamResponse, StreamParser } from '../types';
+import type { StreamParser } from '../types/StreamParser';
+import type { SseStreamResponse } from '../types/StreamResponse';
 
 /**
  * SSE(Server-Sent Events) 스트림 파서 클래스입니다.
