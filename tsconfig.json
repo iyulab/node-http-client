@@ -5,6 +5,7 @@
     "module": "ESNext",
     "lib": ["ESNext","DOM","DOM.Iterable"],
     "moduleResolution": "Bundler",
+    "types": ["vite/client", "vitest/globals"],
 
     // 엄격한 타입 체킹
     "strict": true,
@@ -40,6 +41,7 @@
   },
   "include": [
     "src/**/*",
+    "tests/**/*",
     "vite.config.ts",
     "vite-env.d.ts"
   ],
