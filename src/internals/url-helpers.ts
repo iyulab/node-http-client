@@ -21,14 +21,23 @@ export function buildUrl({ baseUrl, path, query }: UrlParts): URL {
     throw new Error("Base URL is required for building the request URL.");
   }
 
-  // 2. URL을 생성합니다.
-  const url = !path 
-    ? new URL(baseUrl)
-    : new URL(baseUrl.endsWith('/') && path.startsWith('/')
-      ? baseUrl + path.slice(1)
-      : baseUrl + path);
+  // 2. 상대 경로인 경우 origin을 자동으로 추가합니다.
+  let resolvedBase = baseUrl;
+  if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+    const origin = typeof globalThis !== 'undefined' && typeof (globalThis as any).location !== 'undefined'
+      ? (globalThis as any).location.origin
+      : '';
+    resolvedBase = origin + baseUrl;
+  }
 
-  // 3. 쿼리 파라미터를 추가합니다.
+  // 3. URL을 생성합니다.
+  const url = !path
+    ? new URL(resolvedBase)
+    : new URL(resolvedBase.endsWith('/') && path.startsWith('/')
+      ? resolvedBase + path.slice(1)
+      : resolvedBase + path);
+
+  // 4. 쿼리 파라미터를 추가합니다.
   if (query) {
     Object.entries(query).forEach(([key, value]) => {
       if (value !== null && value !== undefined) {
