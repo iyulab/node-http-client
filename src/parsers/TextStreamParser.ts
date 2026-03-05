@@ -6,7 +6,7 @@ import type { TextStreamResponse } from '../types/StreamResponse';
  * 줄바꿈 기준으로 텍스트를 분할하여 스트림으로 제공합니다.
  */
 export class TextStreamParser implements StreamParser<TextStreamResponse> {
-  private readonly DELEMITER = /\r?\n/;
+  private readonly DELIMITER = /\r?\n/;
   private readonly decoder: TextDecoder;
 
   constructor(decoder: TextDecoder = new TextDecoder('utf-8')) {
@@ -28,7 +28,7 @@ export class TextStreamParser implements StreamParser<TextStreamResponse> {
         buffer += this.decoder.decode(value, { stream: true });
 
         // 줄바꿈 기준으로 분할
-        const lines = buffer.split(this.DELEMITER);
+        const lines = buffer.split(this.DELIMITER);
         
         // 마지막 줄은 불완전할 수 있으므로 버퍼에 보관
         buffer = lines.pop() || '';

@@ -50,7 +50,10 @@ export class JsonStreamParser implements StreamParser<JsonStreamResponse> {
           data: jsonStr
         };
       } catch(error) {
-        console.warn('Failed to parse remaining JSON:', buffer, error);
+        console.error('[JsonStreamParser] Failed to parse remaining JSON buffer:', {
+          buffer: buffer.substring(0, 200),
+          error: error instanceof Error ? error.message : String(error)
+        });
       }
     }
   }
@@ -73,21 +76,18 @@ export class JsonStreamParser implements StreamParser<JsonStreamResponse> {
 
       // JSON 객체나 배열이 시작되지 않았다면 시작 문자를 찾을 때까지 스킵
       if (depth < 1) {
-        // 시작 문자를 찾음
-        if ((char === '{' || char === '[') && !inString) {
+        if (char === '{' || char === '[') {
           current += char;
           depth = 1;
+          // JSON 시작 시 상태 초기화
+          inString = false;
+          escaped = false;
         }
-        // 문자열 내부 상태 토글
-        if (char === '"' && i > 0 && text[i - 1] !== '\\') {
-          inString = !inString;
-        }
-
         i++;
         continue;
       }
 
-      // Json이 시작되었다면 문자를 추가
+      // JSON이 시작되었다면 문자를 추가
       current += char;
 
       if (escaped) {
@@ -119,20 +119,23 @@ export class JsonStreamParser implements StreamParser<JsonStreamResponse> {
       // 완전한 JSON 객체/배열이 완성됨
       if (depth === 0) {
         const jsonStr = current.trim();
-        // 유효한 JSON인지 검증 후 추가
         try {
           JSON.parse(jsonStr);
           objects.push(jsonStr);
         } catch(error) {
-          console.warn("failed to parse jsonString in http stream parser", error);
+          console.error('[JsonStreamParser] Failed to parse JSON object:', {
+            json: jsonStr.substring(0, 200),
+            error: error instanceof Error ? error.message : String(error)
+          });
         }
         current = '';
+        inString = false;
+        escaped = false;
       }
 
       i++;
     }
 
-    // 완성된 JsonStr 및 남은 텍스트 반환
     return {
       objects,
       remaining: current

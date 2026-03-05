@@ -10,7 +10,7 @@ export class CanceledError extends Error {
       this.message = error.message;
       this.cause = error.cause;
       this.stack = error.stack;
-    } else if (error instanceof ProgressEvent) {
+    } else if (typeof ProgressEvent !== 'undefined' && error instanceof ProgressEvent) {
       this.message = "Request was cancelled";
       this.cause = error;
     } else if (typeof error === "string") {

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.0 (March 5, 2026)
+- **BREAKING**: Removed `isCanceledError` helper — cancel detection now uses `CancelToken.isCancelled` and `error.name`
+- Added relative base URL support in `buildUrl` (e.g., `new HttpClient({ baseUrl: '/api' })`)
+- Fixed header merging: instance defaults → request headers order, request headers now override instead of append
+- Body `Content-Type` is no longer overwritten when explicitly set by the user
+- Added support for `ArrayBuffer.isView` body types and skip auto Content-Type for `FormData`, `URLSearchParams`, `ReadableStream`
+- Improved upload event system with publish/consume buffer pattern for reliable event delivery
+- Upload abort now properly throws `CanceledError` instead of throwing inside event handler
+- Upload `withCredentials` only set for `credentials: 'include'` (not `same-origin`)
+- Fixed SSE parser to comply with HTML spec: comment lines ignored, single leading space removal, empty data events valid
+- Fixed JSON stream parser state tracking for depth < 1 and reset state after complete objects
+- Fixed typo: `DELEMITER` → `DELIMITER` in SSE and Text parsers
+- Renamed `parseUrl` parameter `defaultUrl` → `baseUrl` for consistency
+- Added `ProgressEvent` existence check in `CanceledError` for non-browser environments
+- Reorganized test files into `tests/parsers/` and `tests/internals/` directories
+
 ## 0.6.1 (January 15, 2026)
 - Refactored internal module structure
 - Added `isCanceledError` helper function for better error handling

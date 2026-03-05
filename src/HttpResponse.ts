@@ -1,6 +1,5 @@
 import { CanceledError } from "./CanceledError";
-import { isCanceledError } from "./internals/error-helpers";
-import { guessStreamFormat, createStreamParser } from "./internals/stream-helpers.js";
+import { guessStreamFormat, createStreamParser } from "./internals/stream-helpers";
 import type { StreamOptions } from "./types/StreamParser";
 import type { StreamResponse, SseStreamResponse, JsonStreamResponse, TextStreamResponse } from "./types/StreamResponse";
 
@@ -121,11 +120,11 @@ export class HttpResponse {
       
       yield* parser.parse(reader);
     } catch (error: any) {
-      if (isCanceledError(error)) {
+      // CancelToken 접근 불가 → error.name으로 2차 판정
+      if (error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')) {
         throw new CanceledError(error);
-      } else {
-        throw error;
       }
+      throw error;
     }
   }
 

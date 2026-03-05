@@ -4,7 +4,6 @@ import type { HttpClientConfig } from "./types/HttpClientConfig";
 import { HttpResponse } from "./HttpResponse";
 import { CancelToken } from "./CancelToken";
 import { CanceledError } from "./CanceledError";
-import { isCanceledError } from "./internals/error-helpers";
 import { buildUrl, parseUrl } from "./internals/url-helpers";
 
 /**
@@ -101,25 +100,35 @@ export class HttpClient {
       query: request.query
     });
 
-    // 2. Headers 설정
-    const headers = new Headers(request.headers);
+    // 2. Headers 설정 (인스턴스 기본값 → 요청별 헤더 순서로 병합, 요청 헤더가 우선)
+    const headers = new Headers();
+    // 인스턴스 기본 헤더 먼저 설정
     if (this.headers) {
-      Object.entries(this.headers).forEach(([key, value]) => {
-        headers.append(key, value); // append to avoid overwriting
+      new Headers(this.headers).forEach((value, key) => {
+        headers.set(key, value);
+      });
+    }
+    // 요청별 헤더로 덮어쓰기
+    if (request.headers) {
+      new Headers(request.headers).forEach((value, key) => {
+        headers.set(key, value);
       });
     }
 
-    // 3. Body 설정
+    // 3. Body 설정 (사용자가 Content-Type을 명시한 경우 유지)
     let body: BodyInit | undefined = request.body;
+    const hasContentType = headers.has("Content-Type");
     if (typeof body === 'string') {
-      headers.set("Content-Type", "text/plain;charset=UTF-8");
-    } else if (typeof body === 'object') {
+      if (!hasContentType) headers.set("Content-Type", "text/plain;charset=UTF-8");
+    } else if (body != null && typeof body === 'object') {
       if (body instanceof Blob) {
-        headers.set("Content-Type", body.type || "application/octet-stream");
-      } else if (body instanceof ArrayBuffer) {
-        headers.set("Content-Type", "application/octet-stream");
+        if (!hasContentType) headers.set("Content-Type", body.type || "application/octet-stream");
+      } else if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) {
+        if (!hasContentType) headers.set("Content-Type", "application/octet-stream");
+      } else if (body instanceof FormData || body instanceof URLSearchParams || body instanceof ReadableStream) {
+        // 브라우저가 자동으로 Content-Type을 설정하므로 건드리지 않음
       } else {
-        headers.set("Content-Type", "application/json;charset=UTF-8");
+        if (!hasContentType) headers.set("Content-Type", "application/json;charset=UTF-8");
         body = JSON.stringify(body);
       }
     }
@@ -147,11 +156,11 @@ export class HttpClient {
       // 6. 응답 처리
       return new HttpResponse(res);
     } catch (error: any) {
-      if (isCanceledError(error)) {
-        throw new CanceledError(error); // 요청이 취소된 경우
-      } else {
-        throw error; // 다른 오류는 다시 던집니다.
+      // CancelToken 상태를 1차 판정 기준으로 사용
+      if (token.isCancelled) {
+        throw new CanceledError(error);
       }
+      throw error;
     } finally {
       // 7. 타이머를 정리합니다.
       if (timer) {
@@ -167,6 +176,11 @@ export class HttpClient {
    * @param request 업로드 요청 객체
    * @param cancelToken 요청 취소 토큰
    * @returns 업로드 응답 스트림
+   * 
+   * @description
+   * - request.body의 형식에 따라 FormData로 변환하여 전송합니다.
+   * - File 데이터는 FormData로 감싸서 `file` 필드로 전송됩니다.
+   * - File[] 배열은 FormData로 감싸서 `files` 필드로 전송됩니다.
    */
   public async *upload(request: HttpUploadRequest, cancelToken?: CancelToken): AsyncGenerator<FileUploadResponse> {
     // 1. URL 생성
@@ -186,23 +200,27 @@ export class HttpClient {
       xhr.timeout = timeout;
     }
 
-    // 4. 인증 설정
+    // 4. 인증 설정 (include만 withCredentials = true, same-origin은 브라우저 기본 동작)
     const credentials = request.credentials ?? this.credentials;
     if (credentials) {
-      xhr.withCredentials = credentials === 'include' || credentials === 'same-origin';
+      xhr.withCredentials = credentials === 'include';
     }
 
-    // 5. Headers 설정
-    if (request.headers) {
-      Object.entries(request.headers).forEach(([key, value]) => {
-        xhr.setRequestHeader(key, value); // append to avoid overwriting
-      });
-    }
+    // 5. Headers 설정 (인스턴스 기본값 → 요청별 헤더 순서로 병합)
+    const uploadHeaders = new Headers();
     if (this.headers) {
-      Object.entries(this.headers).forEach(([key, value]) => {
-        xhr.setRequestHeader(key, value); // append to avoid overwriting
+      new Headers(this.headers).forEach((value, key) => {
+        uploadHeaders.set(key, value);
       });
     }
+    if (request.headers) {
+      new Headers(request.headers).forEach((value, key) => {
+        uploadHeaders.set(key, value);
+      });
+    }
+    uploadHeaders.forEach((value, key) => {
+      xhr.setRequestHeader(key, value);
+    });
 
     // 6. Body 설정
     let body: FormData;
@@ -220,17 +238,41 @@ export class HttpClient {
       body = formData;
     }
     
-    // 7. Promise를 사용하여 이벤트를 처리
-    const events: ((res: FileUploadResponse) => void)[] = [];
-    const awaitEvent = () => new Promise<FileUploadResponse>((resolve) => {
-      events.push(resolve); // resolve 함수가 호출되면 현재 이벤트가 처리됨
+    // 7. 이벤트 버퍼와 Promise 기반 이벤트 처리
+    // 이벤트가 먼저 도착하면 버퍼에 쌓이고, 소비자가 먼저 대기하면 resolver에 저장
+    const buffer: FileUploadResponse[] = [];
+    let resolver: ((res: FileUploadResponse) => void) | null = null;
+    let aborted = false;
+
+    // 이벤트를 발행
+    const publish = (event: FileUploadResponse) => {
+      if (resolver) {
+        // 소비자가 대기 중이면 즉시 이벤트를 전달
+        const resolve = resolver;
+        resolver = null;
+        resolve(event);
+      } else {
+        // 소비자가 대기 중이지 않으면 버퍼에 이벤트를 저장
+        buffer.push(event);
+      }
+    };
+
+    // 이벤트를 소비
+    const consume = () => new Promise<FileUploadResponse>((resolve) => {
+      if (buffer.length > 0) {
+        // 버퍼에 이벤트가 있으면 즉시 반환
+        resolve(buffer.shift()!);
+      } else {
+        // 버퍼에 이벤트가 없으면 resolver에서 대기
+        resolver = resolve;
+      }
     });
 
     // 8. 이벤트 핸들러 설정
     xhr.upload.onprogress = (ev) => {
       if (ev.lengthComputable) {
         const progress = Math.round((ev.loaded / ev.total) * 100);
-        events.shift()?.({
+        publish({
           type: 'progress',
           loaded: ev.loaded,
           total: ev.total,
@@ -238,7 +280,7 @@ export class HttpClient {
         });
       }
     };
-    
+
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         const headers: Record<string, string> = {};
@@ -251,7 +293,6 @@ export class HttpClient {
             const key = header.substring(0, separatorIndex).trim();
             const value = header.substring(separatorIndex + 2).trim();
             if (headers[key]) {
-              // 중복 키의 경우 값을 쉼표로 연결
               headers[key] = `${headers[key]}, ${value}`;
             } else {
               headers[key] = value;
@@ -259,53 +300,64 @@ export class HttpClient {
           }
         }
 
-        events.shift()?.({
+        publish({
           type: 'success',
           status: xhr.status,
           headers: headers,
           body: xhr.response,
         });
       } else {
-        events.shift()?.({
+        publish({
           type: 'failure',
           status: xhr.status,
           message: `Upload failed with status ${xhr.status}`,
         });
       }
     }
-    
+
     xhr.onerror = () => {
-      events.shift()?.({
+      publish({
         type: 'failure',
         message: 'Network error occurred',
       });
     };
-    
+
     xhr.ontimeout = () => {
-      events.shift()?.({
+      publish({
         type: 'failure',
         message: 'Request timed out',
       });
     };
 
-    xhr.onabort = (ev: ProgressEvent) => {
-      throw new CanceledError(ev);
+    xhr.onabort = () => {
+      aborted = true;
+      // resolver가 대기 중이면 failure로 해제하여 generator가 종료되도록 함
+      publish({
+        type: 'failure',
+        message: 'Request was cancelled',
+      });
     };
-    
+
     // 취소 토큰 설정
     if (cancelToken) {
       cancelToken.register(() => {
         xhr.abort();
       });
     }
-    
+
     // 요청 전송
     xhr.send(body);
 
     while (true) {
-      const event = await awaitEvent();
+      const event = await consume();
+
+      // abort된 경우 CanceledError를 던져 generator를 종료
+      if (aborted) {
+        throw new CanceledError('Request was cancelled');
+      }
+
       yield event;
-  
+
       // 성공/에러 등 종료 이벤트면 반복 종료
       if (event.type === 'success' || event.type === 'failure') break;
     }
@@ -331,6 +383,6 @@ export class HttpClient {
 
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
+    a.remove();
   }
 }

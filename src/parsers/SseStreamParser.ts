@@ -5,7 +5,7 @@ import type { SseStreamResponse } from '../types/StreamResponse';
  * SSE(Server-Sent Events) 스트림 파서 클래스입니다.
  */
 export class SseStreamParser implements StreamParser<SseStreamResponse> {
-  private readonly DELEMITER = /\r?\n\r?\n/;
+  private readonly DELIMITER = /\r?\n\r?\n/;
   private readonly decoder: TextDecoder;
 
   constructor(decoder: TextDecoder = new TextDecoder('utf-8')) {
@@ -27,7 +27,7 @@ export class SseStreamParser implements StreamParser<SseStreamResponse> {
         buffer += this.decoder.decode(value, { stream: true });
 
         // 빈 줄(\r\n\r\n) 기준으로 분할
-        const blocks = buffer.split(this.DELEMITER);
+        const blocks = buffer.split(this.DELIMITER);
         
         // 마지막 블록은 불완전할 수 있으므로 버퍼에 보관
         if (blocks.length > 1) {
@@ -53,25 +53,41 @@ export class SseStreamParser implements StreamParser<SseStreamResponse> {
 
   /**
    * 단일 SSE 이벤트 블록을 파싱합니다.
+   * @see https://html.spec.whatwg.org/multipage/server-sent-events.html#event-stream-interpretation
    */
   private parseBlock(data: string): SseStreamResponse | undefined {
     if (!data) return undefined;
-    
-    const lines = data.split(/\r?\n/).filter(line => line.trim() !== '');
+
+    const lines = data.split(/\r?\n/);
     if (lines.length === 0) return undefined;
-    
-    const event: SseStreamResponse = { 
+
+    const event: SseStreamResponse = {
       type: 'sse',
-      event: 'message', 
-      data: '' 
+      event: 'message',
+      data: ''
     };
 
     for (const line of lines) {
-      const divider = line.indexOf(':');
-      if (divider === -1) continue;
+      // 빈 줄은 무시 (블록 내부의 빈 줄)
+      if (line === '') continue;
 
-      const key = line.slice(0, divider).trim();
-      const value = line.slice(divider + 1).trim();
+      // 콜론으로 시작하는 줄은 주석 → 무시
+      if (line.startsWith(':')) continue;
+
+      const divider = line.indexOf(':');
+
+      let key: string;
+      let value: string;
+      if (divider === -1) {
+        // 콜론이 없으면 전체 줄이 field name, value는 빈 문자열
+        key = line;
+        value = '';
+      } else {
+        key = line.slice(0, divider);
+        // 스펙: 콜론 뒤 첫 번째 공백 하나만 제거
+        const raw = line.slice(divider + 1);
+        value = raw.startsWith(' ') ? raw.slice(1) : raw;
+      }
 
       if (key === 'event') {
         event.event = value;
@@ -87,6 +103,7 @@ export class SseStreamParser implements StreamParser<SseStreamResponse> {
       }
     }
 
-    return event.data ? event : undefined;
+    // SSE 스펙상 빈 data도 유효한 이벤트 (heartbeat 등)
+    return event;
   }
 }
