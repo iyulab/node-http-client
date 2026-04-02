@@ -1,6 +1,6 @@
 {
   "name": "@iyulab/http-client",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "A simple HTTP client for handling responses.",
   "keywords": [
     "http",
@@ -18,8 +18,10 @@
   },
   "files": [
     "dist",
+    "skills",
     "package.json",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "type": "module",

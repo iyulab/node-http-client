@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.7.2] - 2026-04-02
+
+### Fixed
+- Added `skills/` and `CHANGELOG.md` to npm `files` field — both were missing from the published package, making `npx skills add ./node_modules/@iyulab/http-client` non-functional
+
 ## [0.7.1] - 2026-04-02
 
 ### Added
