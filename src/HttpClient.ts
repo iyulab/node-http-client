@@ -152,6 +152,8 @@ export class HttpClient {
       ? setTimeout(() => token.cancel(), timeout)
       : null;
 
+    let httpResponse: HttpResponse;
+
     try {
       // 6. Fetch 요청
       const res = await fetch(url.toString(), {
@@ -166,20 +168,7 @@ export class HttpClient {
       });
 
       // 7. 응답 처리
-      const httpResponse = new HttpResponse(res);
-
-      // 8. onResponse 훅 호출
-      if (this.onResponse) {
-        await this.onResponse({
-          ok: httpResponse.ok,
-          status: httpResponse.status,
-          statusText: httpResponse.statusText,
-          headers: httpResponse.headers,
-          url: httpResponse.url,
-        });
-      }
-
-      return httpResponse;
+      httpResponse = new HttpResponse(res);
     } catch (error: any) {
       // CancelToken 상태를 1차 판정 기준으로 사용
       if (token.isCancelled) {
@@ -187,11 +176,24 @@ export class HttpClient {
       }
       throw error;
     } finally {
-      // 9. 타이머를 정리합니다.
+      // 8. 타이머를 정리합니다.
       if (timer) {
         clearTimeout(timer);
       }
     }
+
+    // 9. onResponse 훅 호출 (try/catch 밖에서 호출하여 CanceledError와 분리)
+    if (this.onResponse) {
+      await this.onResponse({
+        ok: httpResponse.ok,
+        status: httpResponse.status,
+        statusText: httpResponse.statusText,
+        headers: httpResponse.headers,
+        url: httpResponse.url,
+      });
+    }
+
+    return httpResponse;
   }
 
   /**

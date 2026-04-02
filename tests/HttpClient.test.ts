@@ -15,10 +15,6 @@ const server = setupServer(
     }
     return new MswHttpResponse(null, { status: 401, statusText: 'Unauthorized' });
   }),
-  http.post('https://api.test.com/data', async ({ request }) => {
-    const body = await request.json();
-    return MswHttpResponse.json({ received: body });
-  }),
 );
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));

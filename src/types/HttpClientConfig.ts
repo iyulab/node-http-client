@@ -1,9 +1,11 @@
+import type { HttpMethod } from './HttpRequest';
+
 /**
  * onRequest 훅에 전달되는 요청 정보입니다.
  */
 export interface RequestHookInfo {
   /** HTTP 메서드 */
-  method: string;
+  method: HttpMethod;
   /** 요청 경로 */
   path?: string;
   /** 쿼리 파라미터 */
