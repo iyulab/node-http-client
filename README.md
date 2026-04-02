@@ -3,14 +3,6 @@
 An HTTP client library for browsers.  
 Supports general requests, file upload/download, and multiple stream response formats using both Fetch API and XMLHttpRequest.
 
-## ✨ Features
-
-- ✅ RESTful HTTP request support (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`)
-- 📤 File upload support (with progress tracking)
-- 📥 File download support (using `<a>` tag)
-- 🔁 Stream response support (SSE, JSON Object, Text with auto-detection)
-- ❌ Request cancellation and timeout control (`CancelToken`)
-
 ---
 
 ## 📦 Installation
@@ -18,6 +10,24 @@ Supports general requests, file upload/download, and multiple stream response fo
 ```bash
 npm install @iyulab/http-client
 ```
+
+## 🤖 Skills Usage
+
+This package includes an [Agent Skill](https://agentskills.io/) that helps AI coding agents understand and use this library.
+
+**Via GitHub (recommended):**
+
+```bash
+npx skills add iyulab/node-http-client
+```
+
+**Via local `node_modules`:**
+
+```bash
+npx skills add ./node_modules/@iyulab/http-client/skills/iyulab-http-client
+```
+
+---
 
 ## 🚀 Usage Examples
 

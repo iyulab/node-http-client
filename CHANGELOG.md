@@ -1,46 +1,82 @@
 # Changelog
 
-## 0.7.0 (March 5, 2026)
-- **BREAKING**: Removed `isCanceledError` helper — cancel detection now uses `CancelToken.isCancelled` and `error.name`
-- Added relative base URL support in `buildUrl` (e.g., `new HttpClient({ baseUrl: '/api' })`)
-- Fixed header merging: instance defaults → request headers order, request headers now override instead of append
-- Body `Content-Type` is no longer overwritten when explicitly set by the user
-- Added support for `ArrayBuffer.isView` body types and skip auto Content-Type for `FormData`, `URLSearchParams`, `ReadableStream`
+## [0.7.1] - 2026-04-02
+
+### Added
+- Agent Skills definition (`skills/iyulab-http-client`) with full API reference, streaming guide, and upload guide
+
+## [0.7.0] - 2026-03-05
+
+### Added
+- Relative base URL support in `buildUrl` (e.g., `new HttpClient({ baseUrl: '/api' })`)
+- Support for `ArrayBuffer.isView` body types
+- `ProgressEvent` existence check in `CanceledError` for non-browser environments
+
+### Changed
+- **Breaking:** Removed `isCanceledError` helper — cancel detection now uses `CancelToken.isCancelled` and `error.name`
 - Improved upload event system with publish/consume buffer pattern for reliable event delivery
-- Upload abort now properly throws `CanceledError` instead of throwing inside event handler
-- Upload `withCredentials` only set for `credentials: 'include'` (not `same-origin`)
-- Fixed SSE parser to comply with HTML spec: comment lines ignored, single leading space removal, empty data events valid
-- Fixed JSON stream parser state tracking for depth < 1 and reset state after complete objects
-- Fixed typo: `DELEMITER` → `DELIMITER` in SSE and Text parsers
 - Renamed `parseUrl` parameter `defaultUrl` → `baseUrl` for consistency
-- Added `ProgressEvent` existence check in `CanceledError` for non-browser environments
 - Reorganized test files into `tests/parsers/` and `tests/internals/` directories
 
-## 0.6.1 (January 15, 2026)
+### Fixed
+- Fixed header merging order: instance defaults → request headers; request headers now properly override instead of append
+- Body `Content-Type` is no longer overwritten when explicitly set by the caller
+- Auto `Content-Type` detection now skips `FormData`, `URLSearchParams`, and `ReadableStream` body types
+- Upload abort now correctly throws `CanceledError` instead of throwing inside an event handler
+- `withCredentials` now only set when `credentials: 'include'` (not `same-origin`)
+- Fixed SSE parser to comply with HTML spec: comment lines ignored, single leading space stripped, empty data events valid
+- Fixed JSON stream parser state tracking for depth < 1 and state reset after complete objects
+- Fixed typo: `DELEMITER` → `DELIMITER` in SSE and Text parsers
+
+## [0.6.1] - 2026-01-15
+
+### Added
+- `isCanceledError` helper function for convenient cancel detection
+
+### Changed
 - Refactored internal module structure
-- Added `isCanceledError` helper function for better error handling
 
-## 0.6.0 (November 12, 2025)
-- Improved JSON Object stream parsing with error handling
-- Removed commonjs build output, now only ESM is supported
+## [0.6.0] - 2025-11-12
 
-## 0.5.0 (October 28, 2025)
-- Added comprehensive stream parsing support (SSE, JSON, Text) with auto-detection
+### Changed
+- Improved JSON object stream parsing with error handling
+
+### Removed
+- Dropped CommonJS build output — ESM only
+
+## [0.5.0] - 2025-10-28
+
+### Added
+- Comprehensive stream parsing support: SSE, JSON object stream, and text stream with auto-detection
 - Unified stream response interfaces with type discrimination
-- Refactored code structure with modular architecture (types, internals, parsers)
+
+### Changed
+- Refactored codebase into modular architecture (types, internals, parsers)
 - Enhanced file upload with response-based event system
 - Improved URL handling with separated utility functions
 
-## 0.4.0 (June 20, 2025)
-- Change builder to Vite
+## [0.4.0] - 2025-10-27
 
-## 0.3.0 (October 10, 2025)
-- Added `CanceledError` error object for cancellation points
-- Removed obfuscation from build files, maintained comments, and applied formatting
+### Changed
+- Migrated build tooling from Rollup to Vite
 
-## 0.2.0 (April 28, 2025)
-- Added Rollup UMD format build
-- Changed `TextStreamEvent`'s `data` property type from `string[]` to `string`
+## [0.3.0] - 2025-5-19
 
-## 0.1.0 (April 25, 2025)
-- Initial library version release
+### Added
+- `CanceledError` class for cancellation error handling
+
+### Changed
+- Removed code obfuscation from build output; preserved comments and applied formatting
+
+## [0.2.0] - 2025-04-28
+
+### Added
+- UMD format build output via Rollup
+
+### Changed
+- `TextStreamEvent.data` property type changed from `string[]` to `string`
+
+## [0.1.0] - 2025-04-25
+
+### Added
+- Initial release
