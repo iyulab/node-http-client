@@ -1,4 +1,34 @@
 /**
+ * onRequest 훅에 전달되는 요청 정보입니다.
+ */
+export interface RequestHookInfo {
+  /** HTTP 메서드 */
+  method: string;
+  /** 요청 경로 */
+  path?: string;
+  /** 쿼리 파라미터 */
+  query?: Record<string, string | string[]>;
+  /** 기본 URL */
+  baseUrl?: string;
+}
+
+/**
+ * onResponse 훅에 전달되는 응답 정보입니다.
+ */
+export interface ResponseHookInfo {
+  /** 응답 상태가 성공(2xx)인지 여부 */
+  ok: boolean;
+  /** HTTP 상태 코드 */
+  status: number;
+  /** HTTP 상태 텍스트 */
+  statusText: string;
+  /** 응답 헤더 */
+  headers: Headers;
+  /** 응답 URL */
+  url: string;
+}
+
+/**
  * HTTP 클라이언트를 설정하기 위한 구성 옵션입니다.
  */
 export interface HttpClientConfig {
@@ -63,4 +93,23 @@ export interface HttpClientConfig {
    * @warning 일부 브라우저나 데이터가 큰 경우 정상적으로 동작하지 않을 수 있습니다.
    */
   keepalive?: boolean;
+
+  /**
+   * 요청 전에 호출되는 훅입니다.
+   * 요청 정보를 확인하거나 헤더를 수정할 수 있습니다.
+   * 비동기 함수를 지원합니다.
+   *
+   * @param request 요청 정보
+   * @param headers 요청 헤더 (수정 가능)
+   */
+  onRequest?: (request: RequestHookInfo, headers: Headers) => void | Promise<void>;
+
+  /**
+   * 응답 후에 호출되는 훅입니다.
+   * 응답 상태를 확인하거나 에러를 발생시킬 수 있습니다.
+   * 비동기 함수를 지원합니다.
+   *
+   * @param response 응답 정보
+   */
+  onResponse?: (response: ResponseHookInfo) => void | Promise<void>;
 }
