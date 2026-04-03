@@ -1,6 +1,6 @@
 import type { HttpRequest, HttpUploadRequest, HttpDownloadRequest } from "./types/HttpRequest";
 import type { FileUploadResponse } from "./types/FileUploadResponse";
-import type { HttpClientConfig, RequestHookInfo, ResponseHookInfo } from "./types/HttpClientConfig";
+import type { ErrorHookInfo, HttpClientConfig, RequestHookInfo, ResponseHookInfo } from "./types/HttpClientConfig";
 import { HttpResponse } from "./HttpResponse";
 import { CancelToken } from "./CancelToken";
 import { CanceledError } from "./CanceledError";
@@ -27,6 +27,7 @@ export class HttpClient {
   private readonly keepalive?: boolean;
   private readonly onRequest?: (request: RequestHookInfo, headers: Headers) => void | Promise<void>;
   private readonly onResponse?: (response: ResponseHookInfo) => void | Promise<void>;
+  private readonly onError?: (error: ErrorHookInfo) => void | Promise<void>;
 
   constructor(config: HttpClientConfig) {
     this.baseUrl = config.baseUrl;
@@ -38,6 +39,7 @@ export class HttpClient {
     this.keepalive = config.keepalive;
     this.onRequest = config.onRequest;
     this.onResponse = config.onResponse;
+    this.onError = config.onError;
   }
 
   /**
@@ -104,37 +106,22 @@ export class HttpClient {
       query: request.query
     });
 
-    // 2. Headers 설정 (인스턴스 기본값 → 요청별 헤더 순서로 병합, 요청 헤더가 우선)
-    const headers = new Headers();
-    // 인스턴스 기본 헤더 먼저 설정
-    if (this.headers) {
-      new Headers(this.headers).forEach((value, key) => {
-        headers.set(key, value);
-      });
-    }
-    // 요청별 헤더로 덮어쓰기
-    if (request.headers) {
-      new Headers(request.headers).forEach((value, key) => {
-        headers.set(key, value);
-      });
+    // 2. Headers 설정 (기본 헤더 → 요청별 헤더 순서로 병합)
+    const headers = new Headers(this.headers);
+    request.headers?.forEach(([key, value]) => {
+      headers.set(key, value);
+    });
+    // Content-Type이 명시되지 않은 경우, body의 타입을 분석하여 자동으로 설정
+    if (!headers.has("Content-Type")) {
+      const guessed = this.guessMimeType(request.body);
+      if (guessed) headers.set("Content-Type", guessed); 
     }
 
-    // 3. Body 설정 (사용자가 Content-Type을 명시한 경우 유지)
+    // 3. Body 설정 (Content-Type에 따라 자동 직렬화)
     let body: BodyInit | undefined = request.body;
-    const hasContentType = headers.has("Content-Type");
-    if (typeof body === 'string') {
-      if (!hasContentType) headers.set("Content-Type", "text/plain;charset=UTF-8");
-    } else if (body != null && typeof body === 'object') {
-      if (body instanceof Blob) {
-        if (!hasContentType) headers.set("Content-Type", body.type || "application/octet-stream");
-      } else if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) {
-        if (!hasContentType) headers.set("Content-Type", "application/octet-stream");
-      } else if (body instanceof FormData || body instanceof URLSearchParams || body instanceof ReadableStream) {
-        // 브라우저가 자동으로 Content-Type을 설정하므로 건드리지 않음
-      } else {
-        if (!hasContentType) headers.set("Content-Type", "application/json;charset=UTF-8");
-        body = JSON.stringify(body);
-      }
+    if (headers.get("Content-Type")?.includes("application/json")
+      && typeof body === "object" && body !== null) {
+      body = JSON.stringify(body);
     }
 
     // 4. onRequest 훅 호출
@@ -152,8 +139,6 @@ export class HttpClient {
       ? setTimeout(() => token.cancel(), timeout)
       : null;
 
-    let httpResponse: HttpResponse;
-
     try {
       // 6. Fetch 요청
       const res = await fetch(url.toString(), {
@@ -167,33 +152,35 @@ export class HttpClient {
         signal: token.signal,
       });
 
-      // 7. 응답 처리
-      httpResponse = new HttpResponse(res);
+      // 7. onResponse 훅 호출
+      if (this.onResponse) {
+        await this.onResponse({
+          ok: res.ok,
+          status: res.status,
+          statusText: res.statusText,
+          headers: res.headers,
+          url: res.url,
+        });
+      }
+
+      // 8. 응답 처리
+      return new HttpResponse(res);
     } catch (error: any) {
+      // 9. onError 훅 호출
+      if (this.onError) {
+        await this.onError({ error });
+      }
       // CancelToken 상태를 1차 판정 기준으로 사용
       if (token.isCancelled) {
         throw new CanceledError(error);
       }
       throw error;
     } finally {
-      // 8. 타이머를 정리합니다.
+      // 10. 타이머를 정리합니다.
       if (timer) {
         clearTimeout(timer);
       }
     }
-
-    // 9. onResponse 훅 호출 (try/catch 밖에서 호출하여 CanceledError와 분리)
-    if (this.onResponse) {
-      await this.onResponse({
-        ok: httpResponse.ok,
-        status: httpResponse.status,
-        statusText: httpResponse.statusText,
-        headers: httpResponse.headers,
-        url: httpResponse.url,
-      });
-    }
-
-    return httpResponse;
   }
 
   /**
@@ -420,5 +407,30 @@ export class HttpClient {
     document.body.appendChild(a);
     a.click();
     a.remove();
+  }
+
+  /**
+   * Body 데이터를 분석하여 적절한 MIME 타입을 추측합니다.
+   */
+  private guessMimeType(body: any): string | undefined {
+    if (body == null) return undefined;
+
+    if (typeof body === "object") {
+      if (body instanceof Blob) 
+        return body.type || "application/octet-stream";
+      if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) 
+        return "application/octet-stream";
+      if (body instanceof URLSearchParams) 
+        return "application/x-www-form-urlencoded;charset=UTF-8";
+
+      // FormData, ReadableStream은 브라우저 자동 설정에 맡김
+      if (body instanceof FormData || body instanceof ReadableStream) return undefined;
+      
+      // 일반 객체는 JSON으로 직렬화하여 전송
+      return "application/json;charset=UTF-8";
+    }
+
+    // 원시 타입 체크 (string, number, boolean 등)
+    return "text/plain;charset=UTF-8";
   }
 }

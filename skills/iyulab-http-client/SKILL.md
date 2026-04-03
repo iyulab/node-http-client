@@ -4,7 +4,7 @@ description: Browser HTTP client for REST calls, file upload/download, and strea
 license: MIT
 metadata:
   author: iyulab
-  version: "0.7.1"
+  version: "0.8.0"
 ---
 
 # @iyulab/http-client
@@ -36,10 +36,20 @@ const client = new HttpClient({
   headers: { Authorization: 'Bearer <token>' },
   timeout: 10000,          // ms; throws CanceledError on exceeded
   credentials: 'include',  // optional
+  onRequest: async (req, headers) => {
+    const token = await getToken();
+    headers.set('Authorization', `Bearer ${token}`);
+  },
+  onResponse: (res) => {
+    if (res.status === 401) redirectToLogin();
+  },
+  onError: ({ error }) => {
+    logger.error(error);
+  },
 });
 ```
 
-Config options: `baseUrl`, `headers`, `credentials`, `mode`, `cache`, `timeout`, `keepalive`.  
+Config options: `baseUrl`, `headers`, `credentials`, `mode`, `cache`, `timeout`, `keepalive`, `onRequest`, `onResponse`, `onError`.  
 All options can also be overridden per-request via `client.send(request)`.
 
 ## REST Methods
@@ -140,7 +150,7 @@ await client.send({
   path: '/resource',
   query: { page: '1', tags: ['a', 'b'] },
   body: payload,
-  headers: { 'X-Custom': 'value' },
+  headers: new Headers({ 'X-Custom': 'value' }),  // must be Headers instance
   timeout: 5000,
 }, cancelToken);
 ```

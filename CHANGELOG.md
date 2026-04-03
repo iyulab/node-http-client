@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.0] - 2026-04-03
+
+### Added
+- `onRequest` hook in `HttpClientConfig` — called before each request; receives request info and a mutable `Headers` object for inspection or modification; supports async functions
+- `onResponse` hook in `HttpClientConfig` — called after each successful response with status, headers, and URL; supports async functions
+- `onError` hook in `HttpClientConfig` — called when a network or fetch error occurs; supports async functions
+- `RequestHookInfo`, `ResponseHookInfo`, `ErrorHookInfo` types exported for hook parameter typing
+
+### Changed
+- **Breaking:** `HttpRequest.headers` type narrowed from `HeadersInit` to `Headers` — per-request headers must now be passed as a `Headers` instance
+- Auto Content-Type detection refactored into an internal `guessMimeType()` helper; behavior is unchanged
+
 ## [0.7.2] - 2026-04-02
 
 ### Fixed

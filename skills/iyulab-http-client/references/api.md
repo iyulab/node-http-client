@@ -13,6 +13,9 @@ All fields are optional. Used at construction and can be overridden per-request.
 | `cache` | `RequestCache` | Browser cache policy (`'default'`, `'no-store'`, etc.) |
 | `timeout` | `number` | Max request duration in ms; triggers `CanceledError` |
 | `keepalive` | `boolean` | Keep request alive during page unload (not effective for `upload`) |
+| `onRequest` | `(req: RequestHookInfo, headers: Headers) => void \| Promise<void>` | Called before each request; mutate `headers` to inject auth etc. |
+| `onResponse` | `(res: ResponseHookInfo) => void \| Promise<void>` | Called after each successful response |
+| `onError` | `(err: ErrorHookInfo) => void \| Promise<void>` | Called when a network/fetch error occurs |
 
 ## HttpClient Methods
 
@@ -44,6 +47,29 @@ class HttpClient {
 | `FormData`, `URLSearchParams`, `ReadableStream` | Browser-managed (not modified) |
 
 Explicit `Content-Type` in headers always takes precedence.
+
+## Lifecycle Hook Types
+
+```ts
+interface RequestHookInfo {
+  method: HttpMethod;
+  path?: string;
+  query?: Record<string, string | string[]>;
+  baseUrl?: string;
+}
+
+interface ResponseHookInfo {
+  ok: boolean;
+  status: number;
+  statusText: string;
+  headers: Headers;
+  url: string;
+}
+
+interface ErrorHookInfo {
+  error: any;
+}
+```
 
 ## HttpResponse
 
@@ -95,6 +121,23 @@ try {
   await client.get('/api', token);
 } catch (e) {
   if (e instanceof CanceledError) { /* canceled or timed out */ }
+}
+```
+
+## HttpRequest
+
+Per-request override of `HttpClientConfig`. `headers` must be a `Headers` instance.
+
+```ts
+interface HttpRequest extends HttpClientConfig {
+  method: HttpMethod;
+  baseUrl?: string;
+  path?: string;
+  query?: Record<string, string | string[]>;
+  headers?: Headers;   // Headers instance, not HeadersInit
+  body?: any;
+  timeout?: number;
+  cancelToken?: CancelToken;
 }
 ```
 

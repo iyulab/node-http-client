@@ -37,6 +37,12 @@ export interface HttpRequest extends HttpClientConfig {
   query?: Record<string, string | string[]>;
 
   /**
+   * 요청 헤더입니다. HttpClientConfig의 headers는 HeadersInit 타입이지만,
+   * HttpRequest에서는 Headers 객체로 변환되어 사용됩니다.
+   */
+  headers?: Headers;
+
+  /**
    * 요청 본문(body)에 포함될 데이터입니다.
    * 메서드가 'POST' 또는 'PUT'인 경우 주로 사용됩니다.
    */

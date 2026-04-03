@@ -1,8 +1,6 @@
 import type { HttpMethod } from './HttpRequest';
 
-/**
- * onRequest 훅에 전달되는 요청 정보입니다.
- */
+/** onRequest 훅에 전달되는 요청 정보입니다. */
 export interface RequestHookInfo {
   /** HTTP 메서드 */
   method: HttpMethod;
@@ -14,9 +12,7 @@ export interface RequestHookInfo {
   baseUrl?: string;
 }
 
-/**
- * onResponse 훅에 전달되는 응답 정보입니다.
- */
+/** onResponse 훅에 전달되는 응답 정보입니다. */
 export interface ResponseHookInfo {
   /** 응답 상태가 성공(2xx)인지 여부 */
   ok: boolean;
@@ -28,6 +24,12 @@ export interface ResponseHookInfo {
   headers: Headers;
   /** 응답 URL */
   url: string;
+}
+
+/** onError 훅에 전달되는 에러 정보입니다. */
+export interface ErrorHookInfo {
+  /** 에러 객체 */
+  error: any;
 }
 
 /**
@@ -45,6 +47,7 @@ export interface HttpClientConfig {
   /**
    * 요청 시 포함할 HTTP 헤더 객체입니다.
    * fetch의 `headers` 옵션에 해당하며, JSON이나 인증 토큰 등을 명시할 수 있습니다.
+   * 
    * @example { 'Content-Type': 'application/json', 'Authorization': 'Bearer token' }
    */
   headers?: HeadersInit;
@@ -52,6 +55,7 @@ export interface HttpClientConfig {
   /**
    * 요청 시 자격 증명(쿠키, 인증 정보 등)을 포함할지 설정합니다.
    * fetch의 `credentials` 옵션과 동일합니다.
+   * 
    * - `include`: 모든 요청에 자격 증명 포함
    * - `omit`: 자격 증명 포함하지 않음
    * - `same-origin`: 동일 출처 요청에만 자격 증명 포함
@@ -61,6 +65,7 @@ export interface HttpClientConfig {
   /**
    * 요청 방식(CORS 정책 등)을 설정합니다.
    * fetch의 `mode` 옵션에 해당합니다.
+   * 
    * - `same-origin`: 동일 출처 요청만 허용
    * - `cors`: 교차 출처 요청 허용
    * - `navigate`: 페이지 탐색 시 요청 허용
@@ -71,6 +76,7 @@ export interface HttpClientConfig {
   /**
    * 브라우저 캐시 처리 방식을 지정합니다.
    * fetch의 `cache` 옵션에 해당합니다.
+   * 
    * - `default`: 기본 캐시 정책 사용
    * - `force-cache`: 캐시된 응답 강제 사용
    * - `no-cache`: 캐시된 응답 사용 안 함
@@ -114,4 +120,13 @@ export interface HttpClientConfig {
    * @param response 응답 정보
    */
   onResponse?: (response: ResponseHookInfo) => void | Promise<void>;
+
+  /**
+   * 요청 중 에러가 발생했을 때 호출되는 훅입니다.
+   * 에러 정보를 확인하거나 추가 처리를 할 수 있습니다.
+   * 비동기 함수를 지원합니다.
+   *
+   * @param error 에러 정보
+   */
+  onError?: (error: ErrorHookInfo) => void | Promise<void>;
 }
