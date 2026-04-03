@@ -1,6 +1,6 @@
 import type { HttpRequest, HttpUploadRequest, HttpDownloadRequest } from "./types/HttpRequest";
 import type { FileUploadResponse } from "./types/FileUploadResponse";
-import type { HttpClientConfig } from "./types/HttpClientConfig";
+import type { HttpClientConfig, RequestHookInfo, ResponseHookInfo } from "./types/HttpClientConfig";
 import { HttpResponse } from "./HttpResponse";
 import { CancelToken } from "./CancelToken";
 import { CanceledError } from "./CanceledError";
@@ -25,6 +25,8 @@ export class HttpClient {
   private readonly mode?: RequestMode;
   private readonly cache?: RequestCache;
   private readonly keepalive?: boolean;
+  private readonly onRequest?: (request: RequestHookInfo, headers: Headers) => void | Promise<void>;
+  private readonly onResponse?: (response: ResponseHookInfo) => void | Promise<void>;
 
   constructor(config: HttpClientConfig) {
     this.baseUrl = config.baseUrl;
@@ -34,6 +36,8 @@ export class HttpClient {
     this.mode = config.mode;
     this.cache = config.cache;
     this.keepalive = config.keepalive;
+    this.onRequest = config.onRequest;
+    this.onResponse = config.onResponse;
   }
 
   /**
@@ -133,15 +137,25 @@ export class HttpClient {
       }
     }
 
-    // 4. Abort 설정
+    // 4. onRequest 훅 호출
+    if (this.onRequest) {
+      await this.onRequest(
+        { method: request.method, path: request.path, query: request.query, baseUrl: request.baseUrl ?? this.baseUrl },
+        headers,
+      );
+    }
+
+    // 5. Abort 설정
     const token = cancelToken || new CancelToken();
     const timeout = request.timeout ?? this.timeout;
     const timer = timeout
       ? setTimeout(() => token.cancel(), timeout)
       : null;
 
+    let httpResponse: HttpResponse;
+
     try {
-      // 5. Fetch 요청
+      // 6. Fetch 요청
       const res = await fetch(url.toString(), {
         method: request.method,
         headers: headers,
@@ -153,8 +167,8 @@ export class HttpClient {
         signal: token.signal,
       });
 
-      // 6. 응답 처리
-      return new HttpResponse(res);
+      // 7. 응답 처리
+      httpResponse = new HttpResponse(res);
     } catch (error: any) {
       // CancelToken 상태를 1차 판정 기준으로 사용
       if (token.isCancelled) {
@@ -162,11 +176,24 @@ export class HttpClient {
       }
       throw error;
     } finally {
-      // 7. 타이머를 정리합니다.
+      // 8. 타이머를 정리합니다.
       if (timer) {
         clearTimeout(timer);
       }
     }
+
+    // 9. onResponse 훅 호출 (try/catch 밖에서 호출하여 CanceledError와 분리)
+    if (this.onResponse) {
+      await this.onResponse({
+        ok: httpResponse.ok,
+        status: httpResponse.status,
+        statusText: httpResponse.statusText,
+        headers: httpResponse.headers,
+        url: httpResponse.url,
+      });
+    }
+
+    return httpResponse;
   }
 
   /**
@@ -218,6 +245,15 @@ export class HttpClient {
         uploadHeaders.set(key, value);
       });
     }
+
+    // 5.1 onRequest 훅 호출
+    if (this.onRequest) {
+      await this.onRequest(
+        { method: request.method, path: request.path, query: request.query, baseUrl: request.baseUrl ?? this.baseUrl },
+        uploadHeaders,
+      );
+    }
+
     uploadHeaders.forEach((value, key) => {
       xhr.setRequestHeader(key, value);
     });
