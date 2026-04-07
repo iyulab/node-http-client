@@ -37,10 +37,14 @@ export interface HttpRequest extends HttpClientConfig {
   query?: Record<string, string | string[]>;
 
   /**
-   * 요청 헤더입니다. HttpClientConfig의 headers는 HeadersInit 타입이지만,
-   * HttpRequest에서는 Headers 객체로 변환되어 사용됩니다.
+   * 요청별 HTTP 헤더입니다.
+   * HttpClientConfig의 인스턴스 기본 헤더와 병합되며, 동일 키는 요청별 값이 우선합니다.
+   * fetch의 `headers` 옵션과 동일한 `HeadersInit` 형식을 그대로 받습니다.
+   *
+   * @example { 'X-API-Key': 'abc' }
+   * @example new Headers({ 'X-API-Key': 'abc' })
    */
-  headers?: Headers;
+  headers?: HeadersInit;
 
   /**
    * 요청 본문(body)에 포함될 데이터입니다.
