@@ -1,9 +1,6 @@
 # Changelog
 
-## [Unreleased]
-
-### Fixed
-- `HttpClient.send()` per-request `headers` merge used `Headers.forEach(([key, value]) => ...)`, which destructured the first callback argument (`value: string`) as if it were an entries-tuple — silently corrupting header keys/values when per-request headers were provided. Replaced with the correct `(value, key) => ...` callback, mirroring the upload path.
+## [0.8.1] - 2026-04-07
 
 ### Changed
 - **Reverted breaking narrowing from 0.8.0:** `HttpRequest.headers` is now `HeadersInit` again (matching `HttpClientConfig.headers`). Plain objects, `Headers` instances, and `[string, string][]` tuples are all accepted, and the client normalizes internally. Restoring this resolves the inconsistency between instance-level (`HeadersInit`) and per-request (`Headers`) headers without sacrificing any safety — `new Headers(init)` already validates the input.
