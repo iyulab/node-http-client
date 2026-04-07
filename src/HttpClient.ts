@@ -108,9 +108,11 @@ export class HttpClient {
 
     // 2. Headers 설정 (기본 헤더 → 요청별 헤더 순서로 병합)
     const headers = new Headers(this.headers);
-    request.headers?.forEach(([key, value]) => {
-      headers.set(key, value);
-    });
+    if (request.headers) {
+      new Headers(request.headers).forEach((value, key) => {
+        headers.set(key, value);
+      });
+    }
     // Content-Type이 명시되지 않은 경우, body의 타입을 분석하여 자동으로 설정
     if (!headers.has("Content-Type")) {
       const guessed = this.guessMimeType(request.body);

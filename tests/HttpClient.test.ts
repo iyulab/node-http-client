@@ -15,6 +15,13 @@ const server = setupServer(
     }
     return new MswHttpResponse(null, { status: 401, statusText: 'Unauthorized' });
   }),
+  http.get('https://api.test.com/echo-headers', ({ request }) => {
+    return MswHttpResponse.json({
+      apiKey: request.headers.get('X-API-Key'),
+      trace: request.headers.get('X-Trace-Id'),
+      contentType: request.headers.get('Content-Type'),
+    });
+  }),
 );
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
@@ -109,6 +116,46 @@ describe('HttpClient onRequest/onResponse hooks', () => {
 
     // /protected without auth header => 401
     await expect(client.get('/protected')).rejects.toThrow('Unauthorized - please login');
+  });
+
+  it('per-request headers accept a plain object (HeadersInit)', async () => {
+    const client = new HttpClient({ baseUrl: 'https://api.test.com' });
+
+    const res = await client.send({
+      method: 'GET',
+      path: '/echo-headers',
+      headers: { 'X-API-Key': 'abc-123', 'X-Trace-Id': 'trace-1' },
+    });
+    expect(res.ok).toBe(true);
+    const data = await res.json<{ apiKey: string; trace: string }>();
+    expect(data.apiKey).toBe('abc-123');
+    expect(data.trace).toBe('trace-1');
+  });
+
+  it('per-request headers accept a Headers instance', async () => {
+    const client = new HttpClient({ baseUrl: 'https://api.test.com' });
+
+    const headers = new Headers();
+    headers.set('X-API-Key', 'from-headers-class');
+    const res = await client.send({ method: 'GET', path: '/echo-headers', headers });
+    expect(res.ok).toBe(true);
+    const data = await res.json<{ apiKey: string }>();
+    expect(data.apiKey).toBe('from-headers-class');
+  });
+
+  it('per-request headers override instance default headers for the same key', async () => {
+    const client = new HttpClient({
+      baseUrl: 'https://api.test.com',
+      headers: { 'X-API-Key': 'instance-default' },
+    });
+
+    const res = await client.send({
+      method: 'GET',
+      path: '/echo-headers',
+      headers: { 'X-API-Key': 'request-override' },
+    });
+    const data = await res.json<{ apiKey: string }>();
+    expect(data.apiKey).toBe('request-override');
   });
 
   it('onRequest -> fetch -> onResponse execution order', async () => {
