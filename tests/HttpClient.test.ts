@@ -15,6 +15,9 @@ const server = setupServer(
     }
     return new MswHttpResponse(null, { status: 401, statusText: 'Unauthorized' });
   }),
+  http.get('https://api.test.com/protected-with-body', () => {
+    return MswHttpResponse.json({ message: 'Session expired' }, { status: 401 });
+  }),
   http.get('https://api.test.com/echo-headers', ({ request }) => {
     return MswHttpResponse.json({
       apiKey: request.headers.get('X-API-Key'),
@@ -116,6 +119,20 @@ describe('HttpClient onRequest/onResponse hooks', () => {
 
     // /protected without auth header => 401
     await expect(client.get('/protected')).rejects.toThrow('Unauthorized - please login');
+  });
+
+  it('onResponse can read the response body via response.response and throw a friendly error (short-circuit)', async () => {
+    const client = new HttpClient({
+      baseUrl: 'https://api.test.com',
+      onResponse: async (res) => {
+        if (res.status === 401) {
+          const body = await res.response.json<{ message: string }>();
+          throw new Error(`Unauthorized: ${body.message}`);
+        }
+      },
+    });
+
+    await expect(client.get('/protected-with-body')).rejects.toThrow('Unauthorized: Session expired');
   });
 
   it('per-request headers accept a plain object (HeadersInit)', async () => {

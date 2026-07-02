@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.9.0] - 2026-07-02
+
+### Added
+- `ResponseHookInfo.response: HttpResponse` — `onResponse` now receives the wrapped response instance, giving hooks body access (`.json()`/`.text()`/...) to build friendly error messages (e.g. parsing a 401 body) before the caller sees the response.
+
+### Changed
+- `HttpRequest.body` and `post`/`put`/`patch` body parameters narrowed from `any` to `unknown` — forces explicit narrowing at call sites, no behavior change (non-breaking: callers passing any concrete value still work).
+- Clarified `onResponse` JSDoc: throwing inside the hook short-circuits the pipeline — `send()` rejects with that error instead of returning a response, and `onError` still runs afterward. This behavior already existed since `onResponse` was introduced in 0.8.0; it just wasn't documented as an intentional contract.
+
 ## [0.8.1] - 2026-04-07
 
 ### Changed

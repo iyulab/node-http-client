@@ -14,7 +14,7 @@ All fields are optional. Used at construction and can be overridden per-request.
 | `timeout` | `number` | Max request duration in ms; triggers `CanceledError` |
 | `keepalive` | `boolean` | Keep request alive during page unload (not effective for `upload`) |
 | `onRequest` | `(req: RequestHookInfo, headers: Headers) => void \| Promise<void>` | Called before each request; mutate `headers` to inject auth etc. |
-| `onResponse` | `(res: ResponseHookInfo) => void \| Promise<void>` | Called after each successful response |
+| `onResponse` | `(res: ResponseHookInfo) => void \| Promise<void>` | Called after each response, before it's returned. `res.response` gives body access (`.json()`/`.text()`/...); throwing here short-circuits the pipeline — `send()` rejects with that error instead of returning a response, and `onError` still runs |
 | `onError` | `(err: ErrorHookInfo) => void \| Promise<void>` | Called when a network/fetch error occurs |
 
 ## HttpClient Methods
@@ -25,9 +25,9 @@ class HttpClient {
 
   head(url: string, token?: CancelToken): Promise<HttpResponse>
   get(url: string, token?: CancelToken): Promise<HttpResponse>
-  post(url: string, body: any, token?: CancelToken): Promise<HttpResponse>
-  put(url: string, body: any, token?: CancelToken): Promise<HttpResponse>
-  patch(url: string, body: any, token?: CancelToken): Promise<HttpResponse>
+  post(url: string, body: unknown, token?: CancelToken): Promise<HttpResponse>
+  put(url: string, body: unknown, token?: CancelToken): Promise<HttpResponse>
+  patch(url: string, body: unknown, token?: CancelToken): Promise<HttpResponse>
   delete(url: string, token?: CancelToken): Promise<HttpResponse>
 
   send(request: HttpRequest, token?: CancelToken): Promise<HttpResponse>

@@ -120,6 +120,30 @@ try {
 }
 ```
 
+### Interceptors (`onRequest` / `onResponse` / `onError`)
+```typescript
+const client = new HttpClient({
+  baseUrl: "https://api.example.com",
+  onRequest: (_req, headers) => {
+    headers.set("Authorization", `Bearer ${getToken()}`);
+  },
+  onResponse: async (res) => {
+    // res.response gives body access (json/text/...) before the caller receives it.
+    // Throwing here short-circuits the pipeline: send() rejects with that error
+    // instead of returning a response, and onError still runs afterward.
+    if (res.status === 401) {
+      const body = await res.response.json<{ message?: string }>().catch(() => null);
+      throw new SessionExpiredError(body?.message);
+    }
+  },
+  onError: ({ error }) => {
+    console.error("Request failed:", error);
+  },
+});
+```
+
+> ⚠️ The response body can only be consumed once (Fetch API constraint). If `onResponse` reads it via `res.response`, don't try to read it again from the value `send()`/`get()`/`post()` returns — this pattern is meant for hooks that fully handle the error case (parse, then throw) rather than pass the body through.
+
 ## 🔧 Configuration Options
 You can configure the client through the `HttpClientConfig` interface:
 
@@ -132,6 +156,9 @@ You can configure the client through the `HttpClientConfig` interface:
 | `cache` | Cache policy settings |
 | `timeout` | Request timeout (in milliseconds) |
 | `keepalive` | Whether to keep requests alive during page unload |
+| `onRequest` | Called before each request; can mutate `headers` |
+| `onResponse` | Called after each response, before it's returned; `response.response` gives body access. Throwing here short-circuits the pipeline (see [Interceptors](#interceptors-onrequest--onresponse--onerror)) |
+| `onError` | Called when a request throws (network error, timeout, or a hook throwing) |
 
 ## 📄 License
 MIT © iyulab

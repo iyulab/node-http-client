@@ -1,4 +1,5 @@
 import type { HttpMethod } from './HttpRequest';
+import type { HttpResponse } from '../HttpResponse';
 
 /** onRequest 훅에 전달되는 요청 정보입니다. */
 export interface RequestHookInfo {
@@ -24,6 +25,15 @@ export interface ResponseHookInfo {
   headers: Headers;
   /** 응답 URL */
   url: string;
+  /**
+   * 본문 접근용 응답 래퍼입니다. `response.json()`/`.text()` 등으로 에러 본문을 파싱해
+   * 친화적인 메시지를 구성하는 데 사용할 수 있습니다.
+   *
+   * @warning 본문은 1회만 소비할 수 있습니다(Fetch API 제약). 훅에서 읽으면 `send()`가
+   * 반환하는 동일 인스턴스에서는 다시 읽을 수 없습니다 — 훅에서 처리를 끝내고 throw하여
+   * 파이프라인을 단락(short-circuit)시키는 시나리오(예: 401 감지 후 에러로 전환)에 적합합니다.
+   */
+  response: HttpResponse;
 }
 
 /** onError 훅에 전달되는 에러 정보입니다. */
@@ -113,11 +123,24 @@ export interface HttpClientConfig {
   onRequest?: (request: RequestHookInfo, headers: Headers) => void | Promise<void>;
 
   /**
-   * 응답 후에 호출되는 훅입니다.
-   * 응답 상태를 확인하거나 에러를 발생시킬 수 있습니다.
+   * 응답 후, 호출자에게 반환되기 전에 호출되는 훅입니다.
+   * `response.response`로 본문을 읽어 에러 상태를 판정하거나 친화적 메시지를 구성할 수 있습니다.
    * 비동기 함수를 지원합니다.
    *
-   * @param response 응답 정보
+   * @param response 응답 정보(본문 접근 포함)
+   *
+   * @example
+   * ```ts
+   * onResponse: async (res) => {
+   *   if (res.status === 401) {
+   *     const body = await res.response.json().catch(() => null);
+   *     throw new SessionExpiredError(body?.message);
+   *   }
+   * }
+   * ```
+   *
+   * @remarks 훅 내부에서 throw하면 `send()`가 그 에러로 reject되어(응답을 정상 반환하지 않고)
+   * 파이프라인이 단락됩니다 — `onError` 훅도 이어서 호출됩니다.
    */
   onResponse?: (response: ResponseHookInfo) => void | Promise<void>;
 

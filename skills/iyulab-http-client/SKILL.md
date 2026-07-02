@@ -41,6 +41,8 @@ const client = new HttpClient({
     headers.set('Authorization', `Bearer ${token}`);
   },
   onResponse: (res) => {
+    // res.response gives body access (.json()/.text()); throwing here short-circuits
+    // the pipeline (see references/api.md).
     if (res.status === 401) redirectToLogin();
   },
   onError: ({ error }) => {

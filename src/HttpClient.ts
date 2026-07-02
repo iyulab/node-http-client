@@ -62,7 +62,7 @@ export class HttpClient {
   /**
    * POST 요청을 보내 서버에 리소스를 생성하거나 데이터를 전송합니다.
    */
-  public async post(url: string, body: any, cancelToken?: CancelToken): Promise<HttpResponse> {
+  public async post(url: string, body: unknown, cancelToken?: CancelToken): Promise<HttpResponse> {
     const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
     return this.send({ method: 'POST', baseUrl, path, query, body }, cancelToken);
   }
@@ -70,7 +70,7 @@ export class HttpClient {
   /**
    * PUT 요청을 보내 서버 리소스를 전체 교체하거나 생성합니다.
    */
-  public async put(url: string, body: any, cancelToken?: CancelToken): Promise<HttpResponse> {
+  public async put(url: string, body: unknown, cancelToken?: CancelToken): Promise<HttpResponse> {
     const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
     return this.send({ method: 'PUT', baseUrl, path, query, body }, cancelToken);
   }
@@ -78,7 +78,7 @@ export class HttpClient {
   /**
    * PATCH 요청을 보내 서버 리소스의 일부를 수정합니다.
    */
-  public async patch(url: string, body: any, cancelToken?: CancelToken): Promise<HttpResponse> {
+  public async patch(url: string, body: unknown, cancelToken?: CancelToken): Promise<HttpResponse> {
     const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
     return this.send({ method: 'PATCH', baseUrl, path, query, body }, cancelToken);
   }
@@ -120,7 +120,9 @@ export class HttpClient {
     }
 
     // 3. Body 설정 (Content-Type에 따라 자동 직렬화)
-    let body: BodyInit | undefined = request.body;
+    // guessMimeType이 이미 BodyInit 호환 타입(Blob/FormData/URLSearchParams/ReadableStream/문자열/객체)만
+    // 통과시켰으므로, 여기서는 그 결과를 신뢰하고 BodyInit으로 좁힙니다.
+    let body: BodyInit | undefined = request.body as BodyInit | undefined;
     if (headers.get("Content-Type")?.includes("application/json")
       && typeof body === "object" && body !== null) {
       body = JSON.stringify(body);
@@ -154,7 +156,10 @@ export class HttpClient {
         signal: token.signal,
       });
 
-      // 7. onResponse 훅 호출
+      // 7. HttpResponse로 래핑 (onResponse 훅에서 본문 접근 가능하도록 훅 호출 전에 생성)
+      const httpResponse = new HttpResponse(res);
+
+      // 8. onResponse 훅 호출 — 훅에서 throw 시 아래 catch로 이동해 파이프라인이 단락됨
       if (this.onResponse) {
         await this.onResponse({
           ok: res.ok,
@@ -162,13 +167,14 @@ export class HttpClient {
           statusText: res.statusText,
           headers: res.headers,
           url: res.url,
+          response: httpResponse,
         });
       }
 
-      // 8. 응답 처리
-      return new HttpResponse(res);
+      // 9. 응답 반환
+      return httpResponse;
     } catch (error: any) {
-      // 9. onError 훅 호출
+      // 10. onError 훅 호출
       if (this.onError) {
         await this.onError({ error });
       }
@@ -178,7 +184,7 @@ export class HttpClient {
       }
       throw error;
     } finally {
-      // 10. 타이머를 정리합니다.
+      // 11. 타이머를 정리합니다.
       if (timer) {
         clearTimeout(timer);
       }
@@ -414,7 +420,7 @@ export class HttpClient {
   /**
    * Body 데이터를 분석하여 적절한 MIME 타입을 추측합니다.
    */
-  private guessMimeType(body: any): string | undefined {
+  private guessMimeType(body: unknown): string | undefined {
     if (body == null) return undefined;
 
     if (typeof body === "object") {
