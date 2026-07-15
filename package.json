@@ -33,7 +33,7 @@
     }
   },
   "scripts": {
-    "test": "vitest --ui",
+    "test": "vitest run",
     "build": "vite build"
   },
   "devDependencies": {
