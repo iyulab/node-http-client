@@ -1,10 +1,14 @@
 import type { HttpRequest, HttpUploadRequest, HttpDownloadRequest } from "./types/HttpRequest";
 import type { FileUploadResponse } from "./types/FileUploadResponse";
-import type { ErrorHookInfo, HttpClientConfig, RequestHookInfo, ResponseHookInfo } from "./types/HttpClientConfig";
+import type { HttpClientConfig } from "./types/HttpClientConfig";
+import type { ErrorHookInfo, RequestHookInfo, ResponseHookInfo } from "./types/Hooks";
+import type { RequestConfig, RequestInterceptors, ResponseInterceptors } from "./types/Interceptors";
 import { HttpResponse } from "./HttpResponse";
 import { CancelToken } from "./CancelToken";
 import { CanceledError } from "./CanceledError";
 import { buildUrl, parseUrl } from "./internals/url-helpers";
+import { guessMimeType } from "./internals/mime-helpers";
+import { InterceptorChain } from "./internals/InterceptorChain";
 
 /**
  * HTTP 클라이언트를 나타내는 클래스입니다.
@@ -25,9 +29,59 @@ export class HttpClient {
   private readonly mode?: RequestMode;
   private readonly cache?: RequestCache;
   private readonly keepalive?: boolean;
+  /** @deprecated `interceptors.request`를 사용하세요. 기능은 계속 동작합니다. */
   private readonly onRequest?: (request: RequestHookInfo, headers: Headers) => void | Promise<void>;
+  /** @deprecated `interceptors.response`를 사용하세요. 기능은 계속 동작합니다. */
   private readonly onResponse?: (response: ResponseHookInfo) => void | Promise<void>;
+  /** @deprecated `interceptors.response`의 실패 핸들러를 사용하세요. 기능은 계속 동작합니다. */
   private readonly onError?: (error: ErrorHookInfo) => void | Promise<void>;
+
+  private readonly reqChain = new InterceptorChain<
+    (config: RequestConfig) => RequestConfig | Promise<RequestConfig>,
+    (error: any) => any
+  >();
+  private readonly resChain = new InterceptorChain<
+    (res: HttpResponse, config: RequestConfig) => HttpResponse | Promise<HttpResponse>,
+    (error: any, config: RequestConfig) => HttpResponse | Promise<HttpResponse>
+  >();
+
+  /**
+   * 요청/응답 파이프라인에 개입할 수 있는 인터셉터입니다.
+   * `use()`로 등록하고 반환된 id로 `eject()`하여 런타임에 제거할 수 있습니다.
+   *
+   * @example
+   * ```ts
+   * const id = client.interceptors.request.use((req) => {
+   *   req.headers.set('Authorization', `Bearer ${getToken()}`);
+   *   return req;
+   * });
+   *
+   * // 401 응답 감지 후 재시도 (fetch는 4xx/5xx에서 reject하지 않으므로 resolved에서 처리)
+   * client.interceptors.response.use(async (res, config) => {
+   *   if (res.status === 401) {
+   *     await refreshToken();
+   *     return client.send(config);
+   *   }
+   *   return res;
+   * });
+   *
+   * // 네트워크 에러 등 fetch 자체 실패 시 복구. CancelToken으로 인한 실패는 미리 CanceledError로
+   * // 정규화되어 전달되므로, 사용자가 명시적으로 취소한 요청은 재시도하지 않도록 구분할 수 있습니다.
+   * client.interceptors.response.use(undefined, async (error, config) => {
+   *   if (error instanceof CanceledError) {
+   *     throw error; // 취소된 요청은 재시도하지 않음
+   *   }
+   *   if (isRetryable(error)) {
+   *     return client.send(config);
+   *   }
+   *   throw error;
+   * });
+   * ```
+   */
+  public readonly interceptors: { request: RequestInterceptors; response: ResponseInterceptors } = {
+    request: this.reqChain,
+    response: this.resChain,
+  };
 
   constructor(config: HttpClientConfig) {
     this.baseUrl = config.baseUrl;
@@ -99,14 +153,7 @@ export class HttpClient {
    * @returns 서버로부터의 응답 객체
    */
   public async send(request: HttpRequest, cancelToken?: CancelToken): Promise<HttpResponse> {
-    // 1. URL 생성
-    const url = buildUrl({
-      baseUrl: request.baseUrl ?? this.baseUrl, 
-      path: request.path, 
-      query: request.query
-    });
-
-    // 2. Headers 설정 (기본 헤더 → 요청별 헤더 순서로 병합)
+    // 1. Headers 설정 (기본 헤더 → 요청별 헤더 순서로 병합)
     const headers = new Headers(this.headers);
     if (request.headers) {
       new Headers(request.headers).forEach((value, key) => {
@@ -115,11 +162,11 @@ export class HttpClient {
     }
     // Content-Type이 명시되지 않은 경우, body의 타입을 분석하여 자동으로 설정
     if (!headers.has("Content-Type")) {
-      const guessed = this.guessMimeType(request.body);
-      if (guessed) headers.set("Content-Type", guessed); 
+      const guessed = guessMimeType(request.body);
+      if (guessed) headers.set("Content-Type", guessed);
     }
 
-    // 3. Body 설정 (Content-Type에 따라 자동 직렬화)
+    // 2. Body 설정 (Content-Type에 따라 자동 직렬화)
     // guessMimeType이 이미 BodyInit 호환 타입(Blob/FormData/URLSearchParams/ReadableStream/문자열/객체)만
     // 통과시켰으므로, 여기서는 그 결과를 신뢰하고 BodyInit으로 좁힙니다.
     let body: BodyInit | undefined = request.body as BodyInit | undefined;
@@ -128,45 +175,75 @@ export class HttpClient {
       body = JSON.stringify(body);
     }
 
-    // 4. onRequest 훅 호출
+    // 3. 요청 인터셉터 체인 실행 (URL 빌드 전이므로 path/query/baseUrl 수정이 반영됨)
+    let config: RequestConfig = { ...request, headers, body };
+    let reqPromise: Promise<RequestConfig> = Promise.resolve(config);
+    this.reqChain.forEach(({ resolved, rejected }) => {
+      reqPromise = reqPromise.then(resolved, rejected);
+    });
+    config = await reqPromise;
+
+    // 4. URL 생성 (인터셉터가 수정한 path/query/baseUrl 반영)
+    const url = buildUrl({
+      baseUrl: config.baseUrl ?? this.baseUrl,
+      path: config.path,
+      query: config.query
+    });
+
+    // 5. onRequest 훅 호출 (@deprecated — interceptors.request 사용 권장)
     if (this.onRequest) {
       await this.onRequest(
-        { method: request.method, path: request.path, query: request.query, baseUrl: request.baseUrl ?? this.baseUrl },
-        headers,
+        { method: config.method, path: config.path, query: config.query, baseUrl: config.baseUrl ?? this.baseUrl },
+        config.headers,
       );
     }
 
-    // 5. Abort 설정
+    // 6. Abort 설정
     const token = cancelToken || new CancelToken();
-    const timeout = request.timeout ?? this.timeout;
+    const timeout = config.timeout ?? this.timeout;
     const timer = timeout
       ? setTimeout(() => token.cancel(), timeout)
       : null;
 
     try {
-      // 6. Fetch 요청
-      const res = await fetch(url.toString(), {
-        method: request.method,
-        headers: headers,
-        body: body,
-        cache: request.cache ?? this.cache,
-        credentials: request.credentials ?? this.credentials,
-        mode: request.mode ?? this.mode,
-        keepalive: request.keepalive ?? this.keepalive,
+      // 7. Fetch 요청 + 응답 인터셉터 체인
+      // (실패 시 rejected 핸들러가 값을 반환하면 파이프라인이 복구됨 — 예: 재시도)
+      let resPromise: Promise<HttpResponse> = fetch(url.toString(), {
+        method: config.method,
+        headers: config.headers,
+        body: config.body as BodyInit | undefined,
+        cache: config.cache ?? this.cache,
+        credentials: config.credentials ?? this.credentials,
+        mode: config.mode ?? this.mode,
+        keepalive: config.keepalive ?? this.keepalive,
         signal: token.signal,
+      })
+        .then((res) => new HttpResponse(res))
+        // CancelToken으로 인한 실패는 인터셉터가 받기 전에 CanceledError로 정규화합니다.
+        // 그래야 rejected 핸들러 안에서 `error instanceof CanceledError`로 "취소로 인한 실패"와
+        // "일반 네트워크 실패"를 구분해서 재시도 여부를 스스로 판단할 수 있습니다.
+        .catch((error) => {
+          throw token.isCancelled ? new CanceledError(error) : error;
+        });
+
+      this.resChain.forEach(({ resolved, rejected }) => {
+        resPromise = resPromise.then(
+          resolved ? (res) => resolved(res, config) : undefined,
+          rejected ? (error: any) => rejected(error, config) : undefined,
+        );
       });
 
-      // 7. HttpResponse로 래핑 (onResponse 훅에서 본문 접근 가능하도록 훅 호출 전에 생성)
-      const httpResponse = new HttpResponse(res);
+      const httpResponse = await resPromise;
 
-      // 8. onResponse 훅 호출 — 훅에서 throw 시 아래 catch로 이동해 파이프라인이 단락됨
+      // 8. onResponse 훅 호출 (@deprecated — interceptors.response 사용 권장)
+      // 훅에서 throw 시 아래 catch로 이동해 파이프라인이 단락됨
       if (this.onResponse) {
         await this.onResponse({
-          ok: res.ok,
-          status: res.status,
-          statusText: res.statusText,
-          headers: res.headers,
-          url: res.url,
+          ok: httpResponse.ok,
+          status: httpResponse.status,
+          statusText: httpResponse.statusText,
+          headers: httpResponse.headers,
+          url: httpResponse.url,
           response: httpResponse,
         });
       }
@@ -174,7 +251,7 @@ export class HttpClient {
       // 9. 응답 반환
       return httpResponse;
     } catch (error: any) {
-      // 10. onError 훅 호출
+      // 10. onError 훅 호출 (@deprecated — interceptors.response의 실패 핸들러 사용 권장)
       if (this.onError) {
         await this.onError({ error });
       }
@@ -205,30 +282,7 @@ export class HttpClient {
    * - File[] 배열은 FormData로 감싸서 `files` 필드로 전송됩니다.
    */
   public async *upload(request: HttpUploadRequest, cancelToken?: CancelToken): AsyncGenerator<FileUploadResponse> {
-    // 1. URL 생성
-    const url = buildUrl({
-      baseUrl: request.baseUrl ?? this.baseUrl,
-      path: request.path, 
-      query: request.query
-    });
-    
-    // 2. XMLHttpRequest 객체 생성
-    const xhr = new XMLHttpRequest();
-    xhr.open(request.method, url, true);
-
-    // 3. 타임 아웃 설정
-    const timeout = request.timeout ?? this.timeout;
-    if (timeout) {
-      xhr.timeout = timeout;
-    }
-
-    // 4. 인증 설정 (include만 withCredentials = true, same-origin은 브라우저 기본 동작)
-    const credentials = request.credentials ?? this.credentials;
-    if (credentials) {
-      xhr.withCredentials = credentials === 'include';
-    }
-
-    // 5. Headers 설정 (인스턴스 기본값 → 요청별 헤더 순서로 병합)
+    // 1. Headers 설정 (인스턴스 기본값 → 요청별 헤더 순서로 병합)
     const uploadHeaders = new Headers();
     if (this.headers) {
       new Headers(this.headers).forEach((value, key) => {
@@ -241,35 +295,70 @@ export class HttpClient {
       });
     }
 
-    // 5.1 onRequest 훅 호출
+    // 2. 요청 인터셉터 체인 실행 (URL 빌드 전이므로 path/query/baseUrl 수정이 반영됨)
+    // 응답 인터셉터(resolved/rejected)는 xhr.onload/onerror/ontimeout/onabort 시점에 적용됩니다
+    // (아래 10번 참고) — send()와 동일하게 상태 코드 기반 처리와 네트워크 레벨 복구를 모두 지원합니다.
+    // onabort는 CanceledError를 시드로 넘겨 인터셉터가 취소로 인한 실패임을 식별할 수 있게 합니다.
+    let config: RequestConfig = { ...request, headers: uploadHeaders };
+    let reqPromise: Promise<RequestConfig> = Promise.resolve(config);
+    this.reqChain.forEach(({ resolved, rejected }) => {
+      reqPromise = reqPromise.then(resolved, rejected);
+    });
+    config = await reqPromise;
+
+    // 3. URL 생성 (인터셉터가 수정한 path/query/baseUrl 반영)
+    const url = buildUrl({
+      baseUrl: config.baseUrl ?? this.baseUrl,
+      path: config.path,
+      query: config.query
+    });
+
+    // 4. XMLHttpRequest 객체 생성
+    const xhr = new XMLHttpRequest();
+    xhr.open(config.method, url, true);
+
+    // 5. 타임 아웃 설정
+    const timeout = config.timeout ?? this.timeout;
+    if (timeout) {
+      xhr.timeout = timeout;
+    }
+
+    // 6. 인증 설정 (include만 withCredentials = true, same-origin은 브라우저 기본 동작)
+    const credentials = config.credentials ?? this.credentials;
+    if (credentials) {
+      xhr.withCredentials = credentials === 'include';
+    }
+
+    // 7. onRequest 훅 호출 (@deprecated — interceptors.request 사용 권장)
     if (this.onRequest) {
       await this.onRequest(
-        { method: request.method, path: request.path, query: request.query, baseUrl: request.baseUrl ?? this.baseUrl },
-        uploadHeaders,
+        { method: config.method, path: config.path, query: config.query, baseUrl: config.baseUrl ?? this.baseUrl },
+        config.headers,
       );
     }
 
-    uploadHeaders.forEach((value, key) => {
+    config.headers.forEach((value, key) => {
       xhr.setRequestHeader(key, value);
     });
 
-    // 6. Body 설정
+    // 8. Body 설정 (인터셉터가 대체했을 수 있으므로 config.body를 사용)
+    const uploadBody = config.body as FormData | File | File[];
     let body: FormData;
-    if (request.body instanceof FormData) {
-      body = request.body;
-    } else if (Array.isArray(request.body)) {
+    if (uploadBody instanceof FormData) {
+      body = uploadBody;
+    } else if (Array.isArray(uploadBody)) {
       const formData = new FormData();
-      for (let i = 0; i < request.body.length; i++) {
-        formData.append('files', request.body[i]);
+      for (let i = 0; i < uploadBody.length; i++) {
+        formData.append('files', uploadBody[i]);
       }
       body = formData;
     } else {
       const formData = new FormData();
-      formData.append('file', request.body);
+      formData.append('file', uploadBody);
       body = formData;
     }
     
-    // 7. 이벤트 버퍼와 Promise 기반 이벤트 처리
+    // 9. 이벤트 버퍼와 Promise 기반 이벤트 처리
     // 이벤트가 먼저 도착하면 버퍼에 쌓이고, 소비자가 먼저 대기하면 resolver에 저장
     const buffer: FileUploadResponse[] = [];
     let resolver: ((res: FileUploadResponse) => void) | null = null;
@@ -299,7 +388,55 @@ export class HttpClient {
       }
     });
 
-    // 8. 이벤트 핸들러 설정
+    // 10. 응답 인터셉터 지원 함수 (send()와 동일한 의미 — 상태 코드 기반 성공/실패 + 네트워크 레벨 실패 모두 포함)
+    // resChain이 비어 있으면(인터셉터 미등록) 아무 작업도 하지 않고 그대로 통과합니다.
+    const runResChain = (start: Promise<HttpResponse>): Promise<HttpResponse> => {
+      let chain = start;
+      this.resChain.forEach(({ resolved, rejected }) => {
+        chain = chain.then(
+          resolved ? (res) => resolved(res, config) : undefined,
+          rejected ? (error: any) => rejected(error, config) : undefined,
+        );
+      });
+      return chain;
+    };
+
+    // 상태 코드로 success/failure 이벤트를 판정해 publish (인터셉터 유무와 무관하게 공유되는 단일 판정 로직)
+    const publishByStatus = (status: number, headers: Record<string, string>, body: any) => {
+      if (status >= 200 && status < 300) {
+        publish({ type: 'success', status, headers, body });
+      } else {
+        publish({ type: 'failure', status, message: `Upload failed with status ${status}` });
+      }
+    };
+
+    // runResChain을 통과한 최종 HttpResponse를 이벤트로 publish
+    const publishResponse = async (res: HttpResponse) => {
+      const headers: Record<string, string> = {};
+      res.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+      publishByStatus(res.status, headers, await res.text());
+    };
+
+    // xhr.getAllResponseHeaders()의 원본 텍스트를 Record로 파싱
+    const readHeaders = (): Record<string, string> => {
+      const headers: Record<string, string> = {};
+      const lines = xhr.getAllResponseHeaders().split('\r\n');
+
+      for (const line of lines) {
+        const separatorIndex = line.indexOf(': ');
+        if (separatorIndex !== -1) {
+          const key = line.substring(0, separatorIndex).trim();
+          const value = line.substring(separatorIndex + 2).trim();
+          headers[key] = headers[key] ? `${headers[key]}, ${value}` : value;
+        }
+      }
+
+      return headers;
+    };
+
+    // 11. 이벤트 핸들러 설정
     xhr.upload.onprogress = (ev) => {
       if (ev.lengthComputable) {
         const progress = Math.round((ev.loaded / ev.total) * 100);
@@ -313,60 +450,52 @@ export class HttpClient {
     };
 
     xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        const headers: Record<string, string> = {};
-        const headersText = xhr.getAllResponseHeaders();
-        const headersList = headersText.split('\r\n');
+      const headers = readHeaders();
 
-        for (const header of headersList) {
-          const separatorIndex = header.indexOf(': ');
-          if (separatorIndex !== -1) {
-            const key = header.substring(0, separatorIndex).trim();
-            const value = header.substring(separatorIndex + 2).trim();
-            if (headers[key]) {
-              headers[key] = `${headers[key]}, ${value}`;
-            } else {
-              headers[key] = value;
-            }
-          }
-        }
-
-        publish({
-          type: 'success',
-          status: xhr.status,
-          headers: headers,
-          body: xhr.response,
-        });
-      } else {
-        publish({
-          type: 'failure',
-          status: xhr.status,
-          message: `Upload failed with status ${xhr.status}`,
-        });
+      // 인터셉터가 없으면 기존과 완전히 동일하게 동작 (합성 Response 생성 비용 없음)
+      if (this.resChain.isEmpty) {
+        publishByStatus(xhr.status, headers, xhr.response);
+        return;
       }
+
+      // 빈 문자열을 그대로 넘기면 204/304 등 null body 상태 코드에서 Response 생성자가 던짐
+      const rawBody = xhr.response === '' ? null : xhr.response;
+      const raw = new HttpResponse(new Response(rawBody, { status: xhr.status, statusText: xhr.statusText, headers }));
+
+      runResChain(Promise.resolve(raw))
+        .then(publishResponse)
+        .catch((error: any) => {
+          publish({ type: 'failure', status: xhr.status, message: error?.message ?? `Upload failed with status ${xhr.status}` });
+        });
     }
 
     xhr.onerror = () => {
-      publish({
-        type: 'failure',
-        message: 'Network error occurred',
-      });
+      runResChain(Promise.reject(new Error('Network error occurred')))
+        .then(publishResponse)
+        .catch(() => {
+          publish({ type: 'failure', message: 'Network error occurred' });
+        });
     };
 
     xhr.ontimeout = () => {
-      publish({
-        type: 'failure',
-        message: 'Request timed out',
-      });
+      runResChain(Promise.reject(new Error('Request timed out')))
+        .then(publishResponse)
+        .catch(() => {
+          publish({ type: 'failure', message: 'Request timed out' });
+        });
     };
 
     xhr.onabort = () => {
-      aborted = true;
-      // resolver가 대기 중이면 failure로 해제하여 generator가 종료되도록 함
-      publish({
-        type: 'failure',
-        message: 'Request was cancelled',
-      });
+      // onabort는 오직 cancelToken을 통한 명시적 xhr.abort() 호출로만 발생합니다(아래 취소 토큰 설정
+      // 참고). CanceledError를 시드로 넘겨야 rejected 핸들러 안에서 `error instanceof CanceledError`로
+      // "취소로 인한 실패"임을 식별하고 재시도 여부를 스스로 판단할 수 있습니다.
+      runResChain(Promise.reject(new CanceledError('Request was cancelled')))
+        .then(publishResponse)
+        .catch(() => {
+          // resolver가 대기 중이면 failure로 해제하여 generator가 종료되도록 함
+          aborted = true;
+          publish({ type: 'failure', message: 'Request was cancelled' });
+        });
     };
 
     // 취소 토큰 설정
@@ -417,28 +546,4 @@ export class HttpClient {
     a.remove();
   }
 
-  /**
-   * Body 데이터를 분석하여 적절한 MIME 타입을 추측합니다.
-   */
-  private guessMimeType(body: unknown): string | undefined {
-    if (body == null) return undefined;
-
-    if (typeof body === "object") {
-      if (body instanceof Blob) 
-        return body.type || "application/octet-stream";
-      if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) 
-        return "application/octet-stream";
-      if (body instanceof URLSearchParams) 
-        return "application/x-www-form-urlencoded;charset=UTF-8";
-
-      // FormData, ReadableStream은 브라우저 자동 설정에 맡김
-      if (body instanceof FormData || body instanceof ReadableStream) return undefined;
-      
-      // 일반 객체는 JSON으로 직렬화하여 전송
-      return "application/json;charset=UTF-8";
-    }
-
-    // 원시 타입 체크 (string, number, boolean 등)
-    return "text/plain;charset=UTF-8";
-  }
 }

@@ -4,7 +4,7 @@ description: Browser HTTP client for REST calls, file upload/download, and strea
 license: MIT
 metadata:
   author: iyulab
-  version: "0.8.0"
+  version: "0.10.0"
 ---
 
 # @iyulab/http-client
@@ -36,22 +36,28 @@ const client = new HttpClient({
   headers: { Authorization: 'Bearer <token>' },
   timeout: 10000,          // ms; throws CanceledError on exceeded
   credentials: 'include',  // optional
-  onRequest: async (req, headers) => {
-    const token = await getToken();
-    headers.set('Authorization', `Bearer ${token}`);
-  },
-  onResponse: (res) => {
-    // res.response gives body access (.json()/.text()); throwing here short-circuits
-    // the pipeline (see references/api.md).
-    if (res.status === 401) redirectToLogin();
-  },
-  onError: ({ error }) => {
-    logger.error(error);
-  },
 });
+
+// Interceptors (recommended over the deprecated onRequest/onResponse/onError hooks)
+client.interceptors.request.use(async (req) => {
+  const token = await getToken();
+  req.headers.set('Authorization', `Bearer ${token}`);
+  return req;
+});
+
+client.interceptors.response.use(
+  (res) => {
+    if (res.status === 401) redirectToLogin();
+    return res;
+  },
+  async (error) => {
+    logger.error(error);
+    throw error;
+  },
+);
 ```
 
-Config options: `baseUrl`, `headers`, `credentials`, `mode`, `cache`, `timeout`, `keepalive`, `onRequest`, `onResponse`, `onError`.  
+Config options: `baseUrl`, `headers`, `credentials`, `mode`, `cache`, `timeout`, `keepalive`, plus the deprecated `onRequest`/`onResponse`/`onError` (see references/api.md).
 All options can also be overridden per-request via `client.send(request)`.
 
 ## REST Methods

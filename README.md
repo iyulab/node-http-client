@@ -120,7 +120,53 @@ try {
 }
 ```
 
-### Interceptors (`onRequest` / `onResponse` / `onError`)
+### Interceptors (`client.interceptors`)
+```typescript
+const client = new HttpClient({ baseUrl: "https://api.example.com" });
+
+// Request interceptor: runs before the URL is built, so path/query/baseUrl
+// mutations are honored, not just headers.
+client.interceptors.request.use((req) => {
+  req.headers.set("Authorization", `Bearer ${getToken()}`);
+  return req;
+});
+
+// Response interceptor: resolved handler gets (response, config). fetch()
+// doesn't reject on 4xx/5xx, so status-code-based retry belongs here.
+client.interceptors.response.use(async (res, config) => {
+  if (res.status === 401) {
+    await refreshToken();
+    config.headers.set("Authorization", `Bearer ${getToken()}`);
+    return client.send(config); // retry
+  }
+  return res;
+});
+
+// The rejected handler recovers from fetch-level failures (network errors,
+// timeouts). Returning a value resolves send() with it instead of throwing.
+// Failures caused by a CancelToken are normalized to CanceledError before
+// reaching here, so you can tell "the caller cancelled this" apart from
+// "the network failed" and decide whether to retry.
+client.interceptors.response.use(undefined, async (error, config) => {
+  if (error instanceof CanceledError) {
+    throw error; // don't retry a request the caller explicitly cancelled
+  }
+  if (isRetryable(error)) {
+    return client.send(config);
+  }
+  throw error;
+});
+
+// use() returns an id you can pass to eject() to remove it at runtime.
+const id = client.interceptors.request.use((req) => req);
+client.interceptors.request.eject(id);
+```
+
+> ⚠️ Response bodies can only be consumed once (Fetch API constraint). If an interceptor reads `res.json()`/`res.text()`, the caller can't read it again from the value `send()`/`get()`/`post()` returns.
+
+`interceptors.request` also runs before `upload()` (headers/`path`/`query`/`baseUrl`). `interceptors.response` applies to `upload()` too: the resolved handler runs on `xhr.onload` (any status, same reasoning as fetch not rejecting on 4xx/5xx) and the rejected handler runs on network-level failure (`onerror`/`ontimeout`/`onabort`, same semantics as `send()`'s catch) — `onabort` (which only fires from an explicit `cancelToken`-triggered abort) passes a `CanceledError` so the handler can tell it apart from a genuine network error. Either way, the final response's status code is what decides the stream's `success`/`failure` event. If no interceptors are registered, `upload()` behaves exactly as before (no synthetic `Response` is built). Neither applies to `download()`.
+
+### Legacy hooks (`onRequest` / `onResponse` / `onError`) — deprecated
 ```typescript
 const client = new HttpClient({
   baseUrl: "https://api.example.com",
@@ -128,9 +174,6 @@ const client = new HttpClient({
     headers.set("Authorization", `Bearer ${getToken()}`);
   },
   onResponse: async (res) => {
-    // res.response gives body access (json/text/...) before the caller receives it.
-    // Throwing here short-circuits the pipeline: send() rejects with that error
-    // instead of returning a response, and onError still runs afterward.
     if (res.status === 401) {
       const body = await res.response.json<{ message?: string }>().catch(() => null);
       throw new SessionExpiredError(body?.message);
@@ -142,7 +185,7 @@ const client = new HttpClient({
 });
 ```
 
-> ⚠️ The response body can only be consumed once (Fetch API constraint). If `onResponse` reads it via `res.response`, don't try to read it again from the value `send()`/`get()`/`post()` returns — this pattern is meant for hooks that fully handle the error case (parse, then throw) rather than pass the body through.
+These still work exactly as before, but new code should prefer `client.interceptors` above — it supports path/query mutation, runtime add/remove (`eject()`), and status-code-based retry, none of which the legacy hooks can express.
 
 ## 🔧 Configuration Options
 You can configure the client through the `HttpClientConfig` interface:
@@ -156,9 +199,9 @@ You can configure the client through the `HttpClientConfig` interface:
 | `cache` | Cache policy settings |
 | `timeout` | Request timeout (in milliseconds) |
 | `keepalive` | Whether to keep requests alive during page unload |
-| `onRequest` | Called before each request; can mutate `headers` |
-| `onResponse` | Called after each response, before it's returned; `response.response` gives body access. Throwing here short-circuits the pipeline (see [Interceptors](#interceptors-onrequest--onresponse--onerror)) |
-| `onError` | Called when a request throws (network error, timeout, or a hook throwing) |
+| `onRequest` | **Deprecated** — use `interceptors.request`. Called before each request; can mutate `headers` |
+| `onResponse` | **Deprecated** — use `interceptors.response`. Called after each response, before it's returned; `response.response` gives body access. Throwing here short-circuits the pipeline |
+| `onError` | **Deprecated** — use `interceptors.response`'s rejected handler. Called when a request throws (network error, timeout, or a hook throwing) |
 
 ## 📄 License
 MIT © iyulab

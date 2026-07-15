@@ -1,46 +1,4 @@
-import type { HttpMethod } from './HttpRequest';
-import type { HttpResponse } from '../HttpResponse';
-
-/** onRequest 훅에 전달되는 요청 정보입니다. */
-export interface RequestHookInfo {
-  /** HTTP 메서드 */
-  method: HttpMethod;
-  /** 요청 경로 */
-  path?: string;
-  /** 쿼리 파라미터 */
-  query?: Record<string, string | string[]>;
-  /** 기본 URL */
-  baseUrl?: string;
-}
-
-/** onResponse 훅에 전달되는 응답 정보입니다. */
-export interface ResponseHookInfo {
-  /** 응답 상태가 성공(2xx)인지 여부 */
-  ok: boolean;
-  /** HTTP 상태 코드 */
-  status: number;
-  /** HTTP 상태 텍스트 */
-  statusText: string;
-  /** 응답 헤더 */
-  headers: Headers;
-  /** 응답 URL */
-  url: string;
-  /**
-   * 본문 접근용 응답 래퍼입니다. `response.json()`/`.text()` 등으로 에러 본문을 파싱해
-   * 친화적인 메시지를 구성하는 데 사용할 수 있습니다.
-   *
-   * @warning 본문은 1회만 소비할 수 있습니다(Fetch API 제약). 훅에서 읽으면 `send()`가
-   * 반환하는 동일 인스턴스에서는 다시 읽을 수 없습니다 — 훅에서 처리를 끝내고 throw하여
-   * 파이프라인을 단락(short-circuit)시키는 시나리오(예: 401 감지 후 에러로 전환)에 적합합니다.
-   */
-  response: HttpResponse;
-}
-
-/** onError 훅에 전달되는 에러 정보입니다. */
-export interface ErrorHookInfo {
-  /** 에러 객체 */
-  error: any;
-}
+import type { RequestHookInfo, ResponseHookInfo, ErrorHookInfo } from './Hooks';
 
 /**
  * HTTP 클라이언트를 설정하기 위한 구성 옵션입니다.
@@ -119,6 +77,10 @@ export interface HttpClientConfig {
    *
    * @param request 요청 정보
    * @param headers 요청 헤더 (수정 가능)
+   *
+   * @deprecated `client.interceptors.request.use(...)`를 사용하세요. path/query/baseUrl도
+   * 수정할 수 있고, 런타임에 등록/해제가 가능합니다. 이 훅은 계속 동작하지만 신규 기능에는
+   * interceptors 사용을 권장합니다.
    */
   onRequest?: (request: RequestHookInfo, headers: Headers) => void | Promise<void>;
 
@@ -141,6 +103,10 @@ export interface HttpClientConfig {
    *
    * @remarks 훅 내부에서 throw하면 `send()`가 그 에러로 reject되어(응답을 정상 반환하지 않고)
    * 파이프라인이 단락됩니다 — `onError` 훅도 이어서 호출됩니다.
+   *
+   * @deprecated `client.interceptors.response.use(...)`를 사용하세요. 실패 핸들러에서 값을
+   * 반환하면 재시도 등으로 파이프라인을 복구할 수 있습니다. 이 훅은 계속 동작하지만 신규
+   * 기능에는 interceptors 사용을 권장합니다.
    */
   onResponse?: (response: ResponseHookInfo) => void | Promise<void>;
 
@@ -150,6 +116,10 @@ export interface HttpClientConfig {
    * 비동기 함수를 지원합니다.
    *
    * @param error 에러 정보
+   *
+   * @deprecated `client.interceptors.response.use(undefined, ...)`를 사용하세요. 실패
+   * 핸들러는 `{ error, config }`를 받아 재시도 등 복구 로직을 표현할 수 있습니다. 이 훅은
+   * 계속 동작하지만 신규 기능에는 interceptors 사용을 권장합니다.
    */
   onError?: (error: ErrorHookInfo) => void | Promise<void>;
 }

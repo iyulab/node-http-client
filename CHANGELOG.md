@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.10.0] - 2026-07-15
+
+### Added
+- `client.interceptors.request` / `client.interceptors.response` — Axios-style interceptor chains with `use()`/`eject()` for runtime add/remove.
+  - Request interceptors run *before* the URL is built, so mutating `path`/`query`/`baseUrl` (not just `headers`) is reflected in the final request — fixes a limitation `onRequest` always had.
+  - Response interceptors' resolved handler receives `(response, config)`, enabling status-code-based retry (e.g. refresh token on 401, then `client.send(config)`) — something `onResponse` couldn't express.
+  - Response interceptors' rejected handler receives `(error, config)` for fetch-level failures (network errors, timeouts) — mirrors the resolved handler's `(response, config)` shape; returning a value recovers the pipeline instead of rejecting. Failures caused by a `CancelToken` are normalized to `CanceledError` *before* reaching the handler, so it can tell "the caller cancelled this" apart from a genuine network failure and decide whether to retry — the interceptor is trusted to make that call, nothing is forced.
+  - `interceptors.request` also applies to `upload()` (headers/`path`/`query`/`baseUrl`), not just `send()`.
+  - `interceptors.response` applies to `upload()` too: the resolved handler runs on `xhr.onload` (any status — same reasoning as `fetch()` not rejecting on 4xx/5xx), the rejected handler runs on network-level failure (`onerror`/`ontimeout`/`onabort`, same semantics as `send()`'s catch) — `onabort` seeds the chain with a `CanceledError` since it only ever fires from an explicit `cancelToken`-triggered abort. The final response's status decides the stream's `success`/`failure` event either way. With no interceptors registered, `upload()` behaves exactly as before (no synthetic `Response` is built — zero overhead). `download()` doesn't build a request at all, so neither interceptor applies there.
+- `RequestConfig`, `RequestInterceptors`, `ResponseInterceptors` types exported from `types/Interceptors.ts`.
+
+### Deprecated
+- `onRequest` / `onResponse` / `onError` in `HttpClientConfig` are deprecated in favor of `client.interceptors`. They keep working exactly as before — no breaking change. Their info types (`RequestHookInfo`, `ResponseHookInfo`, `ErrorHookInfo`) moved to `types/Hooks.ts` (still re-exported from the package root, same import path for consumers).
+
+### Changed
+- `guessMimeType()` moved from a private `HttpClient` method to a standalone function in `internals/mime-helpers.ts`, alongside the existing `internals/url-helpers.ts` and `internals/stream-helpers.ts`; behavior is unchanged.
+
 ## [0.9.0] - 2026-07-02
 
 ### Added

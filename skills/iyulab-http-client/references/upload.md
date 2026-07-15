@@ -79,6 +79,27 @@ for await (const r of client.upload({ method: 'POST', path: '/upload', body: fil
 }
 ```
 
+## Interceptors
+
+`client.interceptors.request` applies to `upload()` too — runs before the request is sent, can mutate headers/`path`/`query`/`baseUrl`. See [./api.md#interceptors-clientinterceptors](./api.md#interceptors-clientinterceptors) for the full contract.
+
+`client.interceptors.response` applies as well, mapped onto XHR's events instead of a single `fetch()` call:
+- resolved handler runs on `xhr.onload` (any status — mirrors `send()`, since a response was received regardless of status code)
+- rejected handler runs on `onerror`/`ontimeout`/`onabort` (no response was received at all)
+- `onabort` only ever fires from an explicit `cancelToken`-triggered abort, so it seeds the rejected handler with a `CanceledError` — check `error instanceof CanceledError` to tell a user cancellation apart from a real network failure
+- either path's final response status decides whether a `success` or `failure` event is published to the stream
+- with no interceptors registered, `upload()` behaves exactly as documented above (zero overhead)
+
+```ts
+client.interceptors.response.use(async (res, config) => {
+  if (res.status === 401) {
+    await refreshToken();
+    return client.send(config); // note: retrying send() here, not upload() — see api.md for why
+  }
+  return res;
+});
+```
+
 ## Notes
 
 - `keepalive` has no effect on upload requests (XHR limitation).

@@ -40,7 +40,7 @@ export interface HttpRequest extends HttpClientConfig {
    * 요청 본문(body)에 포함될 데이터입니다.
    * 메서드가 'POST' 또는 'PUT'인 경우 주로 사용됩니다.
    * 일반 객체는 JSON으로 직렬화되고, `Blob`/`FormData`/`URLSearchParams`/`ReadableStream` 등은
-   * 그대로 전달됩니다(`HttpClient.guessMimeType` 참고).
+   * 그대로 전달됩니다(`internals/mime-helpers.ts`의 `guessMimeType` 참고).
    */
   body?: unknown;
 }
