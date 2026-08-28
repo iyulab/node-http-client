@@ -21,6 +21,18 @@ import { InterceptorChain } from "./internals/InterceptorChain";
  * const client = new HttpClient({ baseUrl: 'https://api.example.com' });
  * const response = await client.send({ method: 'GET', path: '/users' });
  */
+/** 이미 경고한 deprecated 훅 이름 — 앱 전체에서 훅당 1회만 경고한다(인스턴스 수와 무관). */
+const warnedDeprecatedHooks = new Set<string>();
+
+function warnDeprecatedHookOnce(hookName: string, replacement: string): void {
+  if (warnedDeprecatedHooks.has(hookName)) return;
+  warnedDeprecatedHooks.add(hookName);
+  console.warn(
+    `[@iyulab/http-client] "${hookName}" is deprecated and will be removed in a future major version. ` +
+      `Use ${replacement} instead. This warning fires once per hook per process.`,
+  );
+}
+
 export class HttpClient {
   private readonly baseUrl?: string;
   private readonly headers?: HeadersInit;
@@ -192,6 +204,7 @@ export class HttpClient {
 
     // 5. onRequest 훅 호출 (@deprecated — interceptors.request 사용 권장)
     if (this.onRequest) {
+      warnDeprecatedHookOnce('onRequest', '`interceptors.request`');
       await this.onRequest(
         { method: config.method, path: config.path, query: config.query, baseUrl: config.baseUrl ?? this.baseUrl },
         config.headers,
@@ -238,6 +251,7 @@ export class HttpClient {
       // 8. onResponse 훅 호출 (@deprecated — interceptors.response 사용 권장)
       // 훅에서 throw 시 아래 catch로 이동해 파이프라인이 단락됨
       if (this.onResponse) {
+        warnDeprecatedHookOnce('onResponse', '`interceptors.response`');
         await this.onResponse({
           ok: httpResponse.ok,
           status: httpResponse.status,
@@ -253,6 +267,7 @@ export class HttpClient {
     } catch (error: any) {
       // 10. onError 훅 호출 (@deprecated — interceptors.response의 실패 핸들러 사용 권장)
       if (this.onError) {
+        warnDeprecatedHookOnce('onError', "`interceptors.response`'s rejected handler");
         await this.onError({ error });
       }
       // CancelToken 상태를 1차 판정 기준으로 사용
@@ -331,6 +346,7 @@ export class HttpClient {
 
     // 7. onRequest 훅 호출 (@deprecated — interceptors.request 사용 권장)
     if (this.onRequest) {
+      warnDeprecatedHookOnce('onRequest', '`interceptors.request`');
       await this.onRequest(
         { method: config.method, path: config.path, query: config.query, baseUrl: config.baseUrl ?? this.baseUrl },
         config.headers,

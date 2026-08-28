@@ -369,3 +369,70 @@ describe('HttpClient interceptors', () => {
     expect(order).toEqual(['requestInterceptor', 'onRequest', 'responseInterceptor', 'onResponse']);
   });
 });
+
+describe('deprecated onRequest/onResponse/onError hooks warn once per process', () => {
+  // warnedDeprecatedHooks는 모듈 스코프 싱글턴이라, 각 테스트가 "처음 경고하는 순간"을
+  // 독립적으로 관찰하려면 모듈을 새로 로드해야 한다 — vi.resetModules() + 동적 import.
+  it('onRequest hook logs a one-time console.warn naming interceptors.request', async () => {
+    vi.resetModules();
+    const { HttpClient: FreshHttpClient } = await import('../src/HttpClient');
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const client = new FreshHttpClient({
+      baseUrl: 'https://api.test.com',
+      onRequest: () => {},
+    });
+    await client.get('/users');
+    await client.get('/users');
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0]).toContain('onRequest');
+    expect(warnSpy.mock.calls[0][0]).toContain('interceptors.request');
+    warnSpy.mockRestore();
+  });
+
+  it('onResponse hook logs a one-time console.warn naming interceptors.response', async () => {
+    vi.resetModules();
+    const { HttpClient: FreshHttpClient } = await import('../src/HttpClient');
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const client = new FreshHttpClient({
+      baseUrl: 'https://api.test.com',
+      onResponse: () => {},
+    });
+    await client.get('/users');
+    await client.get('/users');
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0]).toContain('onResponse');
+    warnSpy.mockRestore();
+  });
+
+  it('onError hook logs a one-time console.warn naming the interceptors.response failure handler', async () => {
+    vi.resetModules();
+    const { HttpClient: FreshHttpClient } = await import('../src/HttpClient');
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const client = new FreshHttpClient({
+      baseUrl: 'https://api.test.com',
+      onError: () => {},
+    });
+    await expect(client.get('/does-not-exist')).rejects.toThrow();
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0]).toContain('onError');
+    warnSpy.mockRestore();
+  });
+
+  it('does not warn at all when no deprecated hook is configured', async () => {
+    vi.resetModules();
+    const { HttpClient: FreshHttpClient } = await import('../src/HttpClient');
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const client = new FreshHttpClient({ baseUrl: 'https://api.test.com' });
+    await client.get('/users');
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+});

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.1] - 2026-08-28
+
+### Changed
+- `onRequest` / `onResponse` / `onError` now log a one-time `console.warn` (per hook, per process) the first time they actually fire, pointing to the `interceptors` replacement. No behavior change — the hooks keep working exactly as before. This is usage telemetry ahead of a future removal, not a functional change.
+
 ## [0.10.0] - 2026-07-15
 
 ### Added
