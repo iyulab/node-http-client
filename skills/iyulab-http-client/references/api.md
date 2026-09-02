@@ -112,6 +112,7 @@ interface ResponseHookInfo {
   statusText: string;
   headers: Headers;
   url: string;
+  response: HttpResponse; // body readable via .json()/.text() etc. — consumable once (Fetch API constraint)
 }
 
 interface ErrorHookInfo {
