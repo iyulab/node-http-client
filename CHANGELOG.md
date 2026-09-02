@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.2] - 2026-09-02
+
+### Fixed
+- **`ResponseHookInfo`'s type reference (skill docs) was missing the `response` field.** The
+  main `HttpClientConfig` table already correctly described `onResponse`'s `res.response` body
+  access, but the separate "Lifecycle Hook Types" TypeScript snippet for the same interface had
+  dropped that field — an internal inconsistency within the same doc. No code change.
+
 ## [0.10.1] - 2026-08-28
 
 ### Changed
