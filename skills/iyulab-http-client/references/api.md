@@ -86,11 +86,12 @@ client.interceptors.response.use(async (res, config) => {
 
 | `body` value | Auto `Content-Type` |
 |---|---|
-| `string` | `text/plain;charset=UTF-8` |
+| `string`, `number`, `boolean` | `text/plain;charset=UTF-8` |
 | plain object / array | `application/json;charset=UTF-8` + JSON.stringify |
 | `Blob` | `blob.type` or `application/octet-stream` |
 | `ArrayBuffer` / TypedArray | `application/octet-stream` |
-| `FormData`, `URLSearchParams`, `ReadableStream` | Browser-managed (not modified) |
+| `URLSearchParams` | `application/x-www-form-urlencoded;charset=UTF-8` |
+| `FormData`, `ReadableStream` | Browser-managed (not set by the client) |
 
 Explicit `Content-Type` in headers always takes precedence.
 
