@@ -44,6 +44,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
+    "@vitest/browser-preview": "5.0.0",
     "@vitest/expect": "5.0.0",
     "@vitest/ui": "^5.0.0",
     "msw": "^2.15.0",
