@@ -43,6 +43,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@microsoft/api-extractor": "^7.58.8",
     "@types/node": "^26.1.1",
     "@vitest/ui": "^5.0.1",
     "msw": "^2.15.0",
