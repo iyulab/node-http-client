@@ -162,6 +162,8 @@ const id = client.interceptors.request.use((req) => req);
 client.interceptors.request.eject(id);
 ```
 
+A query string written in the URL (`client.get("/items?$top=5")`, or a link the server returned such as an OData `@odata.nextLink`) is parsed into `config.query` so interceptors can read it, and is **sent exactly as written** unless an interceptor changes those parameters — then the query is rebuilt from `config.query`.
+
 > ⚠️ Response bodies can only be consumed once (Fetch API constraint). If an interceptor reads `res.json()`/`res.text()`, the caller can't read it again from the value `send()`/`get()`/`post()` returns.
 
 `interceptors.request` also runs before `upload()` (headers/`path`/`query`/`baseUrl`). `interceptors.response` applies to `upload()` too: the resolved handler runs on `xhr.onload` (any status, same reasoning as fetch not rejecting on 4xx/5xx) and the rejected handler runs on network-level failure (`onerror`/`ontimeout`/`onabort`, same semantics as `send()`'s catch) — `onabort` (which only fires from an explicit `cancelToken`-triggered abort) passes a `CanceledError` so the handler can tell it apart from a genuine network error. Either way, the final response's status code is what decides the stream's `success`/`failure` event. If no interceptors are registered, `upload()` behaves exactly as before (no synthetic `Response` is built). Neither applies to `download()`.
