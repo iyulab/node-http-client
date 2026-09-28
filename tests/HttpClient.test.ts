@@ -436,3 +436,38 @@ describe('deprecated onRequest/onResponse/onError hooks warn once per process', 
     warnSpy.mockRestore();
   });
 });
+
+describe('HttpClient — query string in the URL is sent as given', () => {
+  // A server-issued link (for example an OData `@odata.nextLink`) must be followed opaquely. The client
+  // used to decode the query and re-encode it with form rules: `$` became `%24` and `+` meant a space.
+  const echo = () => server.use(
+    http.get('https://api.test.com/raw', ({ request }) => MswHttpResponse.json({ search: new URL(request.url).search })),
+  );
+
+  it('keeps $-prefixed names and an already-encoded value byte for byte', async () => {
+    echo();
+    const client = new HttpClient({ baseUrl: 'https://api.test.com' });
+    const res = await client.get("/raw?$filter=Name%20eq%20%27a%27&$skiptoken=x+y");
+    expect((await res.json<{ search: string }>()).search).toBe("?$filter=Name%20eq%20%27a%27&$skiptoken=x+y");
+  });
+
+  it('follows an absolute next link without rewriting it', async () => {
+    echo();
+    const client = new HttpClient({ baseUrl: 'https://api.test.com' });
+    const res = await client.get('https://api.test.com/raw?$skiptoken=2&$top=50');
+    expect((await res.json<{ search: string }>()).search).toBe('?$skiptoken=2&$top=50');
+  });
+
+  it('rebuilds the query when a request interceptor changes it', async () => {
+    echo();
+    const client = new HttpClient({ baseUrl: 'https://api.test.com' });
+    client.interceptors.request.use((req) => {
+      req.query = { ...req.query, tenant: 't1' };
+      return req;
+    });
+    const res = await client.get('/raw?$top=5');
+    const { search } = await res.json<{ search: string }>();
+    expect(new URLSearchParams(search).get('$top')).toBe('5');
+    expect(new URLSearchParams(search).get('tenant')).toBe('t1');
+  });
+});

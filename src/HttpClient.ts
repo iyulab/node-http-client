@@ -11,6 +11,17 @@ import { guessMimeType } from "./internals/mime-helpers";
 import { InterceptorChain } from "./internals/InterceptorChain";
 
 /**
+ * 동사 메서드(`get` 등)가 URL 문자열에서 떼어 낸 쿼리 원문을 `send()` 까지 나르는 내부 표식.
+ * 공개 타입(`HttpRequest`·`RequestConfig`)에 싣지 않으려고 심벌 키를 쓴다 — 인터셉터는 종전대로 `query` 만 본다.
+ */
+const RAW_QUERY = Symbol("rawQuery");
+type WithRawQuery = HttpRequest & { [RAW_QUERY]?: string };
+
+function withRawQuery(request: HttpRequest, rawQuery: string | undefined): HttpRequest {
+  return rawQuery ? Object.assign(request, { [RAW_QUERY]: rawQuery }) : request;
+}
+
+/**
  * HTTP 클라이언트를 나타내는 클래스입니다.
  *
  * - 일반 요청은 Fetch API를 통해 처리합니다.
@@ -113,48 +124,48 @@ export class HttpClient {
    * 본문 없이 헤더만 반환됩니다.
    */
   public async head(url: string, cancelToken?: CancelToken): Promise<HttpResponse> {
-    const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
-    return this.send({ method: 'HEAD', baseUrl, path, query }, cancelToken);
+    const { baseUrl, path, query, rawQuery } = parseUrl(url, this.baseUrl);
+    return this.send(withRawQuery({ method: 'HEAD', baseUrl, path, query }, rawQuery), cancelToken);
   }
 
   /**
    * GET 요청을 보내 데이터를 조회합니다.
    */
   public async get(url: string, cancelToken?: CancelToken): Promise<HttpResponse> {
-    const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
-    return this.send({ method: 'GET', baseUrl, path, query }, cancelToken);
+    const { baseUrl, path, query, rawQuery } = parseUrl(url, this.baseUrl);
+    return this.send(withRawQuery({ method: 'GET', baseUrl, path, query }, rawQuery), cancelToken);
   }
 
   /**
    * POST 요청을 보내 서버에 리소스를 생성하거나 데이터를 전송합니다.
    */
   public async post(url: string, body: unknown, cancelToken?: CancelToken): Promise<HttpResponse> {
-    const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
-    return this.send({ method: 'POST', baseUrl, path, query, body }, cancelToken);
+    const { baseUrl, path, query, rawQuery } = parseUrl(url, this.baseUrl);
+    return this.send(withRawQuery({ method: 'POST', baseUrl, path, query, body }, rawQuery), cancelToken);
   }
 
   /**
    * PUT 요청을 보내 서버 리소스를 전체 교체하거나 생성합니다.
    */
   public async put(url: string, body: unknown, cancelToken?: CancelToken): Promise<HttpResponse> {
-    const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
-    return this.send({ method: 'PUT', baseUrl, path, query, body }, cancelToken);
+    const { baseUrl, path, query, rawQuery } = parseUrl(url, this.baseUrl);
+    return this.send(withRawQuery({ method: 'PUT', baseUrl, path, query, body }, rawQuery), cancelToken);
   }
 
   /**
    * PATCH 요청을 보내 서버 리소스의 일부를 수정합니다.
    */
   public async patch(url: string, body: unknown, cancelToken?: CancelToken): Promise<HttpResponse> {
-    const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
-    return this.send({ method: 'PATCH', baseUrl, path, query, body }, cancelToken);
+    const { baseUrl, path, query, rawQuery } = parseUrl(url, this.baseUrl);
+    return this.send(withRawQuery({ method: 'PATCH', baseUrl, path, query, body }, rawQuery), cancelToken);
   }
 
   /**
    * DELETE 요청을 보내 서버 리소스를 삭제합니다.
    */
   public async delete(url: string, cancelToken?: CancelToken): Promise<HttpResponse> {
-    const { baseUrl, path, query } = parseUrl(url, this.baseUrl);
-    return this.send({ method: 'DELETE', baseUrl, path, query }, cancelToken);
+    const { baseUrl, path, query, rawQuery } = parseUrl(url, this.baseUrl);
+    return this.send(withRawQuery({ method: 'DELETE', baseUrl, path, query }, rawQuery), cancelToken);
   }
 
   /**
@@ -195,11 +206,13 @@ export class HttpClient {
     });
     config = await reqPromise;
 
-    // 4. URL 생성 (인터셉터가 수정한 path/query/baseUrl 반영)
+    // 4. URL 생성 (인터셉터가 수정한 path/query/baseUrl 반영). 쿼리를 인터셉터가 건드리지 않았으면
+    //    호출자가 준 원문 쿼리를 그대로 쓴다(`buildUrl` 이 원문과 `query` 를 대조한다).
     const url = buildUrl({
       baseUrl: config.baseUrl ?? this.baseUrl,
       path: config.path,
-      query: config.query
+      query: config.query,
+      rawQuery: (request as WithRawQuery)[RAW_QUERY],
     });
 
     // 5. onRequest 훅 호출 (@deprecated — interceptors.request 사용 권장)

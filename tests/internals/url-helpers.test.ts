@@ -168,3 +168,28 @@ describe('parseUrl', () => {
     expect(result.query).toEqual({ tag: ['a', 'b'] });
   });
 });
+
+describe('쿼리 원문 보존', () => {
+  it('parseUrl 은 원문을 rawQuery 로 함께 돌려준다 — 첫 ? 에서만 자른다', () => {
+    const r = parseUrl('/items?next=a?b&$top=5', 'https://api.com');
+    expect(r.rawQuery).toBe('next=a?b&$top=5');
+    expect(r.query).toEqual({ next: 'a?b', $top: '5' });
+  });
+
+  it('buildUrl 은 query 가 원문과 같으면 원문을 그대로 쓴다', () => {
+    const { baseUrl, path, query, rawQuery } = parseUrl('/items?$skiptoken=x+y&$filter=a%20b', 'https://api.com');
+    expect(buildUrl({ baseUrl, path, query, rawQuery }).search).toBe('?$skiptoken=x+y&$filter=a%20b');
+  });
+
+  it('buildUrl 은 query 가 원문과 다르면 query 로 다시 만든다', () => {
+    const { baseUrl, path, query, rawQuery } = parseUrl('/items?$top=5', 'https://api.com');
+    const url = buildUrl({ baseUrl, path, query: { ...query, page: '2' }, rawQuery });
+    expect(url.searchParams.get('page')).toBe('2');
+    expect(url.searchParams.get('$top')).toBe('5');
+  });
+
+  it('이름 순서만 다른 query 는 같은 것으로 본다', () => {
+    const url = buildUrl({ baseUrl: 'https://api.com', query: { b: '2', a: '1' }, rawQuery: 'a=1&b=2' });
+    expect(url.search).toBe('?a=1&b=2');
+  });
+});
