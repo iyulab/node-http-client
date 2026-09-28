@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.10.3] - 2026-09-28
+
+### Fixed
+- **A query string in the request URL is sent as written.** The client decoded the query and
+  re-encoded it with form rules, so `get('/items?$filter=a%20b')` went out as
+  `?%24filter=a+b`. A link the server issued — an OData `@odata.nextLink`, for example — is now followed
+  byte for byte. The query is still parsed into `config.query` for request interceptors; if an
+  interceptor changes those parameters, the query is rebuilt from them as before.
+
+### Documentation
+- The automatic `Content-Type` table now lists `number`/`boolean` bodies (`text/plain`) and
+  `URLSearchParams` (`application/x-www-form-urlencoded`), which the client already set.
+
 ## [0.10.2] - 2026-09-02
 
 ### Fixed

@@ -61,6 +61,7 @@ interface ResponseInterceptors {
 
 - **`interceptors.request.use(onResolved, onRejected?)`**
   Runs *before* the URL is built — mutating `config.path`/`config.query`/`config.baseUrl` is reflected in the final URL (unlike `onRequest`). `config.headers` is the already-merged `Headers` instance.
+  A query string written in the URL (`client.get('/items?$top=5')`, or a server-issued next link) is parsed into `config.query` for the interceptor to read, and **sent exactly as written** as long as the interceptor leaves those parameters unchanged. Change them and the query is rebuilt from `config.query` (form encoding).
 
 - **`interceptors.response.use(onResolved, onRejected?)`**
   `onResolved(res, config)` runs after a successful `fetch()` (any HTTP status, since fetch doesn't reject on 4xx/5xx). Use `config` to retry by status code, e.g. refresh a token on 401 then `return client.send(config)`.
