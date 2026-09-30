@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.0] - 2026-09-30
+
+### Added
+- **`IncompleteResponseError`** — reading the body (`json()`, `text()`, `arrayBuffer()`, `bytes()`,
+  `blob()`, `stream()`) ends with this error when the connection closes after the headers and before
+  the body is complete. It extends `TypeError`, so code that caught the runtime's `TypeError` keeps
+  working, and the original error is its `cause`. Runtimes report this case with different messages —
+  Node says `terminated`, Chromium says `network error` for a stream and `Failed to fetch` for
+  `text()`, the same message as a refused connection — so a caller could not tell a dropped response
+  from a failed request. Cancellation and timeouts stay `CanceledError`; parse errors, reading a body
+  twice and `formData()` failures are passed through unchanged.
+
 ## [0.11.0] - 2026-09-30
 
 ### Changed

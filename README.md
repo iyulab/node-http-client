@@ -130,6 +130,22 @@ for await (const ev of res.stream({ format: "sse", idleTimeout: 30_000 })) {
 }
 ```
 
+If the connection closes after the headers but before the body is complete, reading ends with
+`IncompleteResponseError` (a `TypeError`, with the runtime's own error as `cause`). Runtimes report this
+with different messages — Chromium even uses the same `Failed to fetch` as a refused connection — so
+check the class, not the message:
+
+```typescript
+import { IncompleteResponseError } from "@iyulab/http-client";
+
+try {
+  for await (const ev of res.stream({ format: "sse" })) render(ev);
+} catch (e) {
+  if (e instanceof IncompleteResponseError) showRetry(); // keep what arrived, offer to retry
+  else throw e;
+}
+```
+
 ### Interceptors (`client.interceptors`)
 ```typescript
 const client = new HttpClient({ baseUrl: "https://api.example.com" });

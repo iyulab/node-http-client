@@ -12,3 +12,4 @@ export { HttpClient } from './HttpClient';
 export { HttpResponse } from './HttpResponse';
 export { CancelToken } from './CancelToken';
 export { CanceledError } from './CanceledError';
+export { IncompleteResponseError } from './IncompleteResponseError';

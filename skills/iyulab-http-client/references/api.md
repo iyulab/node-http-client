@@ -176,6 +176,23 @@ try {
 }
 ```
 
+## IncompleteResponseError
+
+Extends `TypeError` (so `instanceof TypeError` still matches). `name` is `"IncompleteResponseError"`, `cause`
+is the runtime's original error. Thrown by `json()`, `text()`, `arrayBuffer()`, `bytes()`, `blob()` and
+`stream()` when the connection closes after the headers and before the body is complete. Not thrown for
+cancellation or timeouts (`CanceledError`), a JSON parse error (`SyntaxError`), reading a body twice, or
+`formData()` (whose `TypeError` can also mean "not form data"). A failure before any response arrives
+(refused connection, DNS) is still the runtime's own `TypeError`.
+
+```ts
+try {
+  for await (const ev of res.stream({ format: 'sse' })) render(ev);
+} catch (e) {
+  if (e instanceof IncompleteResponseError) { /* connection dropped mid-response */ }
+}
+```
+
 ## HttpRequest
 
 Per-request override of `HttpClientConfig`, passed to `send()` (and built internally by the `get`/`post`/`put`/`patch`/`delete`/`head` shorthands).
