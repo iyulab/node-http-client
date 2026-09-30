@@ -32,6 +32,12 @@ function withRawQuery(request: HttpRequest, rawQuery: string | undefined): HttpR
  * const client = new HttpClient({ baseUrl: 'https://api.example.com' });
  * const response = await client.send({ method: 'GET', path: '/users' });
  */
+/**
+ * 폐기 훅이 제거되는 판. 종전 문구는 «a future major version» 이었는데, 0.x 에서는 마이너가 호환을
+ * 끊는 자리라 그 말이 «1.0 까지는 안전» 으로 읽혔다 — 약속을 구체적인 판으로 고친다.
+ */
+const HOOKS_REMOVED_IN = '0.13.0';
+
 /** 이미 경고한 deprecated 훅 이름 — 앱 전체에서 훅당 1회만 경고한다(인스턴스 수와 무관). */
 const warnedDeprecatedHooks = new Set<string>();
 
@@ -39,7 +45,7 @@ function warnDeprecatedHookOnce(hookName: string, replacement: string): void {
   if (warnedDeprecatedHooks.has(hookName)) return;
   warnedDeprecatedHooks.add(hookName);
   console.warn(
-    `[@iyulab/http-client] "${hookName}" is deprecated and will be removed in a future major version. ` +
+    `[@iyulab/http-client] "${hookName}" is deprecated and will be removed in ${HOOKS_REMOVED_IN}. ` +
       `Use ${replacement} instead. This warning fires once per hook per process.`,
   );
 }

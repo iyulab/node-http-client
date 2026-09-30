@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.1] - 2026-09-30
+
+### Deprecated
+- **`onRequest` / `onResponse` / `onError` will be removed in 0.13.0.** The deprecation warning used to say
+  "a future major version"; below 1.0 a minor release is where breaking changes land, so it now names
+  the release. Move to `client.interceptors` (see the README). The info types `RequestHookInfo`,
+  `ResponseHookInfo`, and `ErrorHookInfo` go with them.
+
 ## [0.12.0] - 2026-09-30
 
 ### Added

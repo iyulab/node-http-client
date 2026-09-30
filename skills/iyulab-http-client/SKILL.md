@@ -57,7 +57,7 @@ client.interceptors.response.use(
 );
 ```
 
-Config options: `baseUrl`, `headers`, `credentials`, `mode`, `cache`, `timeout`, `keepalive`, plus the deprecated `onRequest`/`onResponse`/`onError` (see references/api.md).
+Config options: `baseUrl`, `headers`, `credentials`, `mode`, `cache`, `timeout`, `keepalive`, plus the deprecated `onRequest`/`onResponse`/`onError` — removed in 0.13.0 (see references/api.md).
 All options can also be overridden per-request via `client.send(request)`.
 
 ## REST Methods

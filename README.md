@@ -194,7 +194,9 @@ A query string written in the URL (`client.get("/items?$top=5")`, or a link the 
 
 `interceptors.request` also runs before `upload()` (headers/`path`/`query`/`baseUrl`). `interceptors.response` applies to `upload()` too: the resolved handler runs on `xhr.onload` (any status, same reasoning as fetch not rejecting on 4xx/5xx) and the rejected handler runs on network-level failure (`onerror`/`ontimeout`/`onabort`, same semantics as `send()`'s catch) — `onabort` (which only fires from an explicit `cancelToken`-triggered abort) passes a `CanceledError` so the handler can tell it apart from a genuine network error. Either way, the final response's status code is what decides the stream's `success`/`failure` event. If no interceptors are registered, `upload()` behaves exactly as before (no synthetic `Response` is built). Neither applies to `download()`.
 
-### Legacy hooks (`onRequest` / `onResponse` / `onError`) — deprecated
+### Legacy hooks (`onRequest` / `onResponse` / `onError`) — deprecated, removed in 0.13.0
+
+These hooks log a one-time warning and are **removed in 0.13.0** — move to `client.interceptors` (above).
 ```typescript
 const client = new HttpClient({
   baseUrl: "https://api.example.com",

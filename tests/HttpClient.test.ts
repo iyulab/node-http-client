@@ -388,6 +388,8 @@ describe('deprecated onRequest/onResponse/onError hooks warn once per process', 
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy.mock.calls[0][0]).toContain('onRequest');
     expect(warnSpy.mock.calls[0][0]).toContain('interceptors.request');
+    // 제거 판을 구체적으로 말한다 — «a future major version» 은 0.x 에서 «1.0 까지 안전» 으로 읽혔다.
+    expect(warnSpy.mock.calls[0][0]).toContain('will be removed in 0.13.0');
     warnSpy.mockRestore();
   });
 
