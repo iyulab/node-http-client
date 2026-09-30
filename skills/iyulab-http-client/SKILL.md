@@ -38,7 +38,7 @@ const client = new HttpClient({
   credentials: 'include',  // optional
 });
 
-// Interceptors (recommended over the deprecated onRequest/onResponse/onError hooks)
+// Interceptors — auth headers, response checks, retry
 client.interceptors.request.use(async (req) => {
   const token = await getToken();
   req.headers.set('Authorization', `Bearer ${token}`);
@@ -57,7 +57,7 @@ client.interceptors.response.use(
 );
 ```
 
-Config options: `baseUrl`, `headers`, `credentials`, `mode`, `cache`, `timeout`, `keepalive`, plus the deprecated `onRequest`/`onResponse`/`onError` — removed in 0.13.0 (see references/api.md).
+Config options: `baseUrl`, `headers`, `credentials`, `mode`, `cache`, `timeout`, `keepalive`. (The `onRequest`/`onResponse`/`onError` hooks were removed in 0.13.0 — use interceptors.)
 All options can also be overridden per-request via `client.send(request)`.
 
 ## REST Methods

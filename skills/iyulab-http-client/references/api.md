@@ -13,11 +13,8 @@ All fields are optional. Used at construction and can be overridden per-request.
 | `cache` | `RequestCache` | Browser cache policy (`'default'`, `'no-store'`, etc.) |
 | `timeout` | `number` | Max request duration in ms, **including reading the body** (`json()`, `text()`, `stream()`…); triggers `CanceledError`. Does not cancel a `CancelToken` you passed |
 | `keepalive` | `boolean` | Keep request alive during page unload (not effective for `upload`) |
-| `onRequest` | `(req: RequestHookInfo, headers: Headers) => void \| Promise<void>` | **Deprecated** — use `interceptors.request`. Called before each request; mutate `headers` to inject auth etc. |
-| `onResponse` | `(res: ResponseHookInfo) => void \| Promise<void>` | **Deprecated** — use `interceptors.response`. Called after each response, before it's returned. `res.response` gives body access (`.json()`/`.text()`/...); throwing here short-circuits the pipeline — `send()` rejects with that error instead of returning a response, and `onError` still runs |
-| `onError` | `(err: ErrorHookInfo) => void \| Promise<void>` | **Deprecated** — use `interceptors.response`'s rejected handler. Called when a network/fetch error occurs |
 
-All three legacy hooks still work exactly as before — only new code should prefer `interceptors` (see below).
+The `onRequest`/`onResponse`/`onError` hooks were removed in 0.13.0 — use `interceptors` (below).
 
 ## HttpClient Methods
 
@@ -60,7 +57,7 @@ interface ResponseInterceptors {
 ```
 
 - **`interceptors.request.use(onResolved, onRejected?)`**
-  Runs *before* the URL is built — mutating `config.path`/`config.query`/`config.baseUrl` is reflected in the final URL (unlike `onRequest`). `config.headers` is the already-merged `Headers` instance.
+  Runs *before* the URL is built — mutating `config.path`/`config.query`/`config.baseUrl` is reflected in the final URL. `config.headers` is the already-merged `Headers` instance.
   A query string written in the URL (`client.get('/items?$top=5')`, or a server-issued next link) is parsed into `config.query` for the interceptor to read, and **sent exactly as written** as long as the interceptor leaves those parameters unchanged. Change them and the query is rebuilt from `config.query` (form encoding).
 
 - **`interceptors.response.use(onResolved, onRejected?)`**
@@ -95,32 +92,6 @@ client.interceptors.response.use(async (res, config) => {
 | `FormData`, `ReadableStream` | Browser-managed (not set by the client) |
 
 Explicit `Content-Type` in headers always takes precedence.
-
-## Lifecycle Hook Types (deprecated)
-
-Parameter types for the deprecated `onRequest`/`onResponse`/`onError` hooks above. New code should use `RequestConfig`/`HttpResponse` via `interceptors` instead.
-
-```ts
-interface RequestHookInfo {
-  method: HttpMethod;
-  path?: string;
-  query?: Record<string, string | string[]>;
-  baseUrl?: string;
-}
-
-interface ResponseHookInfo {
-  ok: boolean;
-  status: number;
-  statusText: string;
-  headers: Headers;
-  url: string;
-  response: HttpResponse; // body readable via .json()/.text() etc. — consumable once (Fetch API constraint)
-}
-
-interface ErrorHookInfo {
-  error: any;
-}
-```
 
 ## HttpResponse
 

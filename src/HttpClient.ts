@@ -1,7 +1,6 @@
 import type { HttpRequest, HttpUploadRequest, HttpDownloadRequest } from "./types/HttpRequest";
 import type { FileUploadResponse } from "./types/FileUploadResponse";
 import type { HttpClientConfig } from "./types/HttpClientConfig";
-import type { ErrorHookInfo, RequestHookInfo, ResponseHookInfo } from "./types/Hooks";
 import type { RequestConfig, RequestInterceptors, ResponseInterceptors } from "./types/Interceptors";
 import { HttpResponse } from "./HttpResponse";
 import { CancelToken } from "./CancelToken";
@@ -32,24 +31,6 @@ function withRawQuery(request: HttpRequest, rawQuery: string | undefined): HttpR
  * const client = new HttpClient({ baseUrl: 'https://api.example.com' });
  * const response = await client.send({ method: 'GET', path: '/users' });
  */
-/**
- * 폐기 훅이 제거되는 판. 종전 문구는 «a future major version» 이었는데, 0.x 에서는 마이너가 호환을
- * 끊는 자리라 그 말이 «1.0 까지는 안전» 으로 읽혔다 — 약속을 구체적인 판으로 고친다.
- */
-const HOOKS_REMOVED_IN = '0.13.0';
-
-/** 이미 경고한 deprecated 훅 이름 — 앱 전체에서 훅당 1회만 경고한다(인스턴스 수와 무관). */
-const warnedDeprecatedHooks = new Set<string>();
-
-function warnDeprecatedHookOnce(hookName: string, replacement: string): void {
-  if (warnedDeprecatedHooks.has(hookName)) return;
-  warnedDeprecatedHooks.add(hookName);
-  console.warn(
-    `[@iyulab/http-client] "${hookName}" is deprecated and will be removed in ${HOOKS_REMOVED_IN}. ` +
-      `Use ${replacement} instead. This warning fires once per hook per process.`,
-  );
-}
-
 export class HttpClient {
   private readonly baseUrl?: string;
   private readonly headers?: HeadersInit;
@@ -58,12 +39,6 @@ export class HttpClient {
   private readonly mode?: RequestMode;
   private readonly cache?: RequestCache;
   private readonly keepalive?: boolean;
-  /** @deprecated `interceptors.request`를 사용하세요. 기능은 계속 동작합니다. */
-  private readonly onRequest?: (request: RequestHookInfo, headers: Headers) => void | Promise<void>;
-  /** @deprecated `interceptors.response`를 사용하세요. 기능은 계속 동작합니다. */
-  private readonly onResponse?: (response: ResponseHookInfo) => void | Promise<void>;
-  /** @deprecated `interceptors.response`의 실패 핸들러를 사용하세요. 기능은 계속 동작합니다. */
-  private readonly onError?: (error: ErrorHookInfo) => void | Promise<void>;
 
   private readonly reqChain = new InterceptorChain<
     (config: RequestConfig) => RequestConfig | Promise<RequestConfig>,
@@ -120,9 +95,6 @@ export class HttpClient {
     this.mode = config.mode;
     this.cache = config.cache;
     this.keepalive = config.keepalive;
-    this.onRequest = config.onRequest;
-    this.onResponse = config.onResponse;
-    this.onError = config.onError;
   }
 
   /**
@@ -221,16 +193,7 @@ export class HttpClient {
       rawQuery: (request as WithRawQuery)[RAW_QUERY],
     });
 
-    // 5. onRequest 훅 호출 (@deprecated — interceptors.request 사용 권장)
-    if (this.onRequest) {
-      warnDeprecatedHookOnce('onRequest', '`interceptors.request`');
-      await this.onRequest(
-        { method: config.method, path: config.path, query: config.query, baseUrl: config.baseUrl ?? this.baseUrl },
-        config.headers,
-      );
-    }
-
-    // 6. Abort 설정
+    // 5. Abort 설정
     //    ⚠타임아웃은 호출자의 토큰을 취소하지 않는다 — 재사용되는 토큰이 다음 요청까지 죽는다.
     //    내부 컨트롤러 하나가 «호출자 취소» 와 «시간 초과» 를 함께 받는다.
     //    ⚠타이머는 응답 헤더에서 풀지 않는다 — 본문을 다 읽을 때(`HttpResponse` 가 `settle`)까지 잰다.
@@ -259,7 +222,7 @@ export class HttpClient {
     const lifecycle = { settle, aborted, abort: () => controller.abort() };
 
     try {
-      // 7. Fetch 요청 + 응답 인터셉터 체인
+      // 6. Fetch 요청 + 응답 인터셉터 체인
       // (실패 시 rejected 핸들러가 값을 반환하면 파이프라인이 복구됨 — 예: 재시도)
       let resPromise: Promise<HttpResponse> = fetch(url.toString(), {
         method: config.method,
@@ -288,29 +251,10 @@ export class HttpClient {
 
       const httpResponse = await resPromise;
 
-      // 8. onResponse 훅 호출 (@deprecated — interceptors.response 사용 권장)
-      // 훅에서 throw 시 아래 catch로 이동해 파이프라인이 단락됨
-      if (this.onResponse) {
-        warnDeprecatedHookOnce('onResponse', '`interceptors.response`');
-        await this.onResponse({
-          ok: httpResponse.ok,
-          status: httpResponse.status,
-          statusText: httpResponse.statusText,
-          headers: httpResponse.headers,
-          url: httpResponse.url,
-          response: httpResponse,
-        });
-      }
-
-      // 9. 응답 반환
+      // 7. 응답 반환
       return httpResponse;
     } catch (error: any) {
-      // 10. onError 훅 호출 (@deprecated — interceptors.response의 실패 핸들러 사용 권장)
-      if (this.onError) {
-        warnDeprecatedHookOnce('onError', "`interceptors.response`'s rejected handler");
-        await this.onError({ error });
-      }
-      // 11. 실패로 끝났으면 여기서 정리한다(성공이면 본문을 다 읽을 때 `HttpResponse` 가 정리한다).
+      // 8. 실패로 끝났으면 여기서 정리한다(성공이면 본문을 다 읽을 때 `HttpResponse` 가 정리한다).
       settle();
       // 취소·시간 초과를 1차 판정 기준으로 사용
       if (aborted()) {
@@ -381,20 +325,11 @@ export class HttpClient {
       xhr.withCredentials = credentials === 'include';
     }
 
-    // 7. onRequest 훅 호출 (@deprecated — interceptors.request 사용 권장)
-    if (this.onRequest) {
-      warnDeprecatedHookOnce('onRequest', '`interceptors.request`');
-      await this.onRequest(
-        { method: config.method, path: config.path, query: config.query, baseUrl: config.baseUrl ?? this.baseUrl },
-        config.headers,
-      );
-    }
-
     config.headers.forEach((value, key) => {
       xhr.setRequestHeader(key, value);
     });
 
-    // 8. Body 설정 (인터셉터가 대체했을 수 있으므로 config.body를 사용)
+    // 7. Body 설정 (인터셉터가 대체했을 수 있으므로 config.body를 사용)
     const uploadBody = config.body as FormData | File | File[];
     let body: FormData;
     if (uploadBody instanceof FormData) {
@@ -411,7 +346,7 @@ export class HttpClient {
       body = formData;
     }
     
-    // 9. 이벤트 버퍼와 Promise 기반 이벤트 처리
+    // 8. 이벤트 버퍼와 Promise 기반 이벤트 처리
     // 이벤트가 먼저 도착하면 버퍼에 쌓이고, 소비자가 먼저 대기하면 resolver에 저장
     const buffer: FileUploadResponse[] = [];
     let resolver: ((res: FileUploadResponse) => void) | null = null;
@@ -441,7 +376,7 @@ export class HttpClient {
       }
     });
 
-    // 10. 응답 인터셉터 지원 함수 (send()와 동일한 의미 — 상태 코드 기반 성공/실패 + 네트워크 레벨 실패 모두 포함)
+    // 9. 응답 인터셉터 지원 함수 (send()와 동일한 의미 — 상태 코드 기반 성공/실패 + 네트워크 레벨 실패 모두 포함)
     // resChain이 비어 있으면(인터셉터 미등록) 아무 작업도 하지 않고 그대로 통과합니다.
     const runResChain = (start: Promise<HttpResponse>): Promise<HttpResponse> => {
       let chain = start;
@@ -489,7 +424,7 @@ export class HttpClient {
       return headers;
     };
 
-    // 11. 이벤트 핸들러 설정
+    // 10. 이벤트 핸들러 설정
     xhr.upload.onprogress = (ev) => {
       if (ev.lengthComputable) {
         const progress = Math.round((ev.loaded / ev.total) * 100);

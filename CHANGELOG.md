@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Removed
+
+- **Breaking: the `onRequest` / `onResponse` / `onError` options of `HttpClientConfig` are removed**, together
+  with their info types `RequestHookInfo`, `ResponseHookInfo` and `ErrorHookInfo`. They were deprecated in
+  0.10.0 and 0.12.1 named this release. Use `client.interceptors` — the README has a one-line mapping
+  for each hook. A config that still passes them is now a type error; at run time the options are
+  ignored.
+
 ## [0.12.1] - 2026-09-30
 
 ### Deprecated

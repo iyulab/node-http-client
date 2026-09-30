@@ -1,4 +1,3 @@
-import type { RequestHookInfo, ResponseHookInfo, ErrorHookInfo } from './Hooks';
 
 /**
  * HTTP 클라이언트를 설정하기 위한 구성 옵션입니다.
@@ -70,57 +69,4 @@ export interface HttpClientConfig {
    * @warning 일부 브라우저나 데이터가 큰 경우 정상적으로 동작하지 않을 수 있습니다.
    */
   keepalive?: boolean;
-
-  /**
-   * 요청 전에 호출되는 훅입니다.
-   * 요청 정보를 확인하거나 헤더를 수정할 수 있습니다.
-   * 비동기 함수를 지원합니다.
-   *
-   * @param request 요청 정보
-   * @param headers 요청 헤더 (수정 가능)
-   *
-   * @deprecated `client.interceptors.request.use(...)`를 사용하세요. path/query/baseUrl도
-   * 수정할 수 있고, 런타임에 등록/해제가 가능합니다. 이 훅은 계속 동작하지만 신규 기능에는
-   * interceptors 사용을 권장합니다.
-   */
-  onRequest?: (request: RequestHookInfo, headers: Headers) => void | Promise<void>;
-
-  /**
-   * 응답 후, 호출자에게 반환되기 전에 호출되는 훅입니다.
-   * `response.response`로 본문을 읽어 에러 상태를 판정하거나 친화적 메시지를 구성할 수 있습니다.
-   * 비동기 함수를 지원합니다.
-   *
-   * @param response 응답 정보(본문 접근 포함)
-   *
-   * @example
-   * ```ts
-   * onResponse: async (res) => {
-   *   if (res.status === 401) {
-   *     const body = await res.response.json().catch(() => null);
-   *     throw new SessionExpiredError(body?.message);
-   *   }
-   * }
-   * ```
-   *
-   * @remarks 훅 내부에서 throw하면 `send()`가 그 에러로 reject되어(응답을 정상 반환하지 않고)
-   * 파이프라인이 단락됩니다 — `onError` 훅도 이어서 호출됩니다.
-   *
-   * @deprecated `client.interceptors.response.use(...)`를 사용하세요. 실패 핸들러에서 값을
-   * 반환하면 재시도 등으로 파이프라인을 복구할 수 있습니다. 이 훅은 계속 동작하지만 신규
-   * 기능에는 interceptors 사용을 권장합니다.
-   */
-  onResponse?: (response: ResponseHookInfo) => void | Promise<void>;
-
-  /**
-   * 요청 중 에러가 발생했을 때 호출되는 훅입니다.
-   * 에러 정보를 확인하거나 추가 처리를 할 수 있습니다.
-   * 비동기 함수를 지원합니다.
-   *
-   * @param error 에러 정보
-   *
-   * @deprecated `client.interceptors.response.use(undefined, ...)`를 사용하세요. 실패
-   * 핸들러는 `{ error, config }`를 받아 재시도 등 복구 로직을 표현할 수 있습니다. 이 훅은
-   * 계속 동작하지만 신규 기능에는 interceptors 사용을 권장합니다.
-   */
-  onError?: (error: ErrorHookInfo) => void | Promise<void>;
 }

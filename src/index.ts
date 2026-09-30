@@ -5,7 +5,6 @@ export type * from './types/FileUploadResponse';
 export type * from './types/StreamResponse';
 export type * from './types/StreamParser';
 export type * from './types/Interceptors';
-export type * from './types/Hooks';
 
 // main exports
 export { HttpClient } from './HttpClient';

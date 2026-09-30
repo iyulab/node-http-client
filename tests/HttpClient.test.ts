@@ -35,39 +35,9 @@ beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-describe('HttpClient onRequest/onResponse hooks', () => {
+describe('HttpClient requests', () => {
 
-  it('onRequest hook is called before each request and can modify headers', async () => {
-    const client = new HttpClient({
-      baseUrl: 'https://api.test.com',
-      onRequest: (_req, headers) => {
-        headers.set('Authorization', 'Bearer test-token');
-      },
-    });
-
-    const res = await client.get('/protected');
-    expect(res.ok).toBe(true);
-    const data = await res.json<{ data: string }>();
-    expect(data.data).toBe('secret');
-  });
-
-  it('onRequest supports async functions', async () => {
-    const client = new HttpClient({
-      baseUrl: 'https://api.test.com',
-      onRequest: async (_req, headers) => {
-        // 비동기 토큰 조회 시뮬레이션
-        const token = await Promise.resolve('Bearer test-token');
-        headers.set('Authorization', token);
-      },
-    });
-
-    const res = await client.get('/protected');
-    expect(res.ok).toBe(true);
-    const data = await res.json<{ data: string }>();
-    expect(data.data).toBe('secret');
-  });
-
-  it('when onRequest is not provided, requests work normally', async () => {
+  it('a request with only a base URL works', async () => {
     const client = new HttpClient({
       baseUrl: 'https://api.test.com',
     });
@@ -76,67 +46,6 @@ describe('HttpClient onRequest/onResponse hooks', () => {
     expect(res.ok).toBe(true);
     const data = await res.json<{ users: string[] }>();
     expect(data.users).toEqual(['alice', 'bob']);
-  });
-
-  it('when onRequest throws, the request fails with that error', async () => {
-    const client = new HttpClient({
-      baseUrl: 'https://api.test.com',
-      onRequest: () => {
-        throw new Error('Token expired');
-      },
-    });
-
-    await expect(client.get('/users')).rejects.toThrow('Token expired');
-  });
-
-  it('onResponse hook is called after each response', async () => {
-    const onResponse = vi.fn();
-    const client = new HttpClient({
-      baseUrl: 'https://api.test.com',
-      onResponse,
-    });
-
-    const res = await client.get('/users');
-    expect(res.ok).toBe(true);
-
-    expect(onResponse).toHaveBeenCalledOnce();
-    expect(onResponse).toHaveBeenCalledWith(
-      expect.objectContaining({
-        ok: true,
-        status: 200,
-        statusText: expect.any(String),
-        headers: expect.any(Headers),
-        url: expect.stringContaining('/users'),
-      }),
-    );
-  });
-
-  it('onResponse can throw errors which propagate to caller', async () => {
-    const client = new HttpClient({
-      baseUrl: 'https://api.test.com',
-      onResponse: (res) => {
-        if (res.status === 401) {
-          throw new Error('Unauthorized - please login');
-        }
-      },
-    });
-
-    // /protected without auth header => 401
-    await expect(client.get('/protected')).rejects.toThrow('Unauthorized - please login');
-  });
-
-  it('onResponse can read the response body via response.response and throw a friendly error (short-circuit)', async () => {
-    const client = new HttpClient({
-      baseUrl: 'https://api.test.com',
-      onResponse: async (res) => {
-        if (res.status === 401) {
-          const body = await res.response.json<{ message: string }>();
-          throw new Error(`Unauthorized: ${body.message}`);
-        }
-      },
-    });
-
-    await expect(client.get('/protected-with-body')).rejects.toThrow('Unauthorized: Session expired');
   });
 
   it('per-request headers accept a plain object (HeadersInit)', async () => {
@@ -179,22 +88,6 @@ describe('HttpClient onRequest/onResponse hooks', () => {
     expect(data.apiKey).toBe('request-override');
   });
 
-  it('onRequest -> fetch -> onResponse execution order', async () => {
-    const order: string[] = [];
-
-    const client = new HttpClient({
-      baseUrl: 'https://api.test.com',
-      onRequest: () => {
-        order.push('onRequest');
-      },
-      onResponse: () => {
-        order.push('onResponse');
-      },
-    });
-
-    await client.get('/users');
-    expect(order).toEqual(['onRequest', 'onResponse']);
-  });
 });
 
 describe('HttpClient interceptors', () => {
@@ -343,100 +236,6 @@ describe('HttpClient interceptors', () => {
     expect(res.status).toBe(200);
   });
 
-  it('legacy onRequest/onResponse hooks keep working unchanged alongside interceptors', async () => {
-    const order: string[] = [];
-    const client = new HttpClient({
-      baseUrl: 'https://api.test.com',
-      onRequest: () => {
-        order.push('onRequest');
-      },
-      onResponse: () => {
-        order.push('onResponse');
-      },
-    });
-
-    client.interceptors.request.use((req) => {
-      order.push('requestInterceptor');
-      return req;
-    });
-    client.interceptors.response.use((res) => {
-      order.push('responseInterceptor');
-      return res;
-    });
-
-    const res = await client.get('/users');
-    expect(res.ok).toBe(true);
-    expect(order).toEqual(['requestInterceptor', 'onRequest', 'responseInterceptor', 'onResponse']);
-  });
-});
-
-describe('deprecated onRequest/onResponse/onError hooks warn once per process', () => {
-  // warnedDeprecatedHooks는 모듈 스코프 싱글턴이라, 각 테스트가 "처음 경고하는 순간"을
-  // 독립적으로 관찰하려면 모듈을 새로 로드해야 한다 — vi.resetModules() + 동적 import.
-  it('onRequest hook logs a one-time console.warn naming interceptors.request', async () => {
-    vi.resetModules();
-    const { HttpClient: FreshHttpClient } = await import('../src/HttpClient');
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    const client = new FreshHttpClient({
-      baseUrl: 'https://api.test.com',
-      onRequest: () => {},
-    });
-    await client.get('/users');
-    await client.get('/users');
-
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(warnSpy.mock.calls[0][0]).toContain('onRequest');
-    expect(warnSpy.mock.calls[0][0]).toContain('interceptors.request');
-    // 제거 판을 구체적으로 말한다 — «a future major version» 은 0.x 에서 «1.0 까지 안전» 으로 읽혔다.
-    expect(warnSpy.mock.calls[0][0]).toContain('will be removed in 0.13.0');
-    warnSpy.mockRestore();
-  });
-
-  it('onResponse hook logs a one-time console.warn naming interceptors.response', async () => {
-    vi.resetModules();
-    const { HttpClient: FreshHttpClient } = await import('../src/HttpClient');
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    const client = new FreshHttpClient({
-      baseUrl: 'https://api.test.com',
-      onResponse: () => {},
-    });
-    await client.get('/users');
-    await client.get('/users');
-
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(warnSpy.mock.calls[0][0]).toContain('onResponse');
-    warnSpy.mockRestore();
-  });
-
-  it('onError hook logs a one-time console.warn naming the interceptors.response failure handler', async () => {
-    vi.resetModules();
-    const { HttpClient: FreshHttpClient } = await import('../src/HttpClient');
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    const client = new FreshHttpClient({
-      baseUrl: 'https://api.test.com',
-      onError: () => {},
-    });
-    await expect(client.get('/does-not-exist')).rejects.toThrow();
-
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(warnSpy.mock.calls[0][0]).toContain('onError');
-    warnSpy.mockRestore();
-  });
-
-  it('does not warn at all when no deprecated hook is configured', async () => {
-    vi.resetModules();
-    const { HttpClient: FreshHttpClient } = await import('../src/HttpClient');
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    const client = new FreshHttpClient({ baseUrl: 'https://api.test.com' });
-    await client.get('/users');
-
-    expect(warnSpy).not.toHaveBeenCalled();
-    warnSpy.mockRestore();
-  });
 });
 
 describe('HttpClient — query string in the URL is sent as given', () => {

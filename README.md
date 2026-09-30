@@ -194,28 +194,15 @@ A query string written in the URL (`client.get("/items?$top=5")`, or a link the 
 
 `interceptors.request` also runs before `upload()` (headers/`path`/`query`/`baseUrl`). `interceptors.response` applies to `upload()` too: the resolved handler runs on `xhr.onload` (any status, same reasoning as fetch not rejecting on 4xx/5xx) and the rejected handler runs on network-level failure (`onerror`/`ontimeout`/`onabort`, same semantics as `send()`'s catch) — `onabort` (which only fires from an explicit `cancelToken`-triggered abort) passes a `CanceledError` so the handler can tell it apart from a genuine network error. Either way, the final response's status code is what decides the stream's `success`/`failure` event. If no interceptors are registered, `upload()` behaves exactly as before (no synthetic `Response` is built). Neither applies to `download()`.
 
-### Legacy hooks (`onRequest` / `onResponse` / `onError`) — deprecated, removed in 0.13.0
+### Migrating from the removed hooks (0.13.0)
 
-These hooks log a one-time warning and are **removed in 0.13.0** — move to `client.interceptors` (above).
-```typescript
-const client = new HttpClient({
-  baseUrl: "https://api.example.com",
-  onRequest: (_req, headers) => {
-    headers.set("Authorization", `Bearer ${getToken()}`);
-  },
-  onResponse: async (res) => {
-    if (res.status === 401) {
-      const body = await res.response.json<{ message?: string }>().catch(() => null);
-      throw new SessionExpiredError(body?.message);
-    }
-  },
-  onError: ({ error }) => {
-    console.error("Request failed:", error);
-  },
-});
-```
+`onRequest`, `onResponse` and `onError` were removed in 0.13.0 (deprecated since 0.10, with a warning since 0.12.1).
 
-These still work exactly as before, but new code should prefer `client.interceptors` above — it supports path/query mutation, runtime add/remove (`eject()`), and status-code-based retry, none of which the legacy hooks can express.
+| Removed hook | Use instead |
+| ------------ | ----------- |
+| `onRequest: (req, headers) => …` | `client.interceptors.request.use((config) => { config.headers.set(…); return config; })` — `config` also carries `path`, `query` and `baseUrl`, and runs before the URL is built |
+| `onResponse: async (res) => …` | `client.interceptors.response.use((res, config) => …)` — return the response (or a retried one), or throw to fail the request |
+| `onError: ({ error }) => …` | `client.interceptors.response.use(undefined, (error, config) => …)` — rethrow to keep it failed, or return a response to recover |
 
 ## 🔧 Configuration Options
 You can configure the client through the `HttpClientConfig` interface:
@@ -229,9 +216,6 @@ You can configure the client through the `HttpClientConfig` interface:
 | `cache` | Cache policy settings |
 | `timeout` | Request timeout in milliseconds — covers reading the body too, and never cancels a `CancelToken` you passed. For long streams use `stream({ idleTimeout })` |
 | `keepalive` | Whether to keep requests alive during page unload |
-| `onRequest` | **Deprecated** — use `interceptors.request`. Called before each request; can mutate `headers` |
-| `onResponse` | **Deprecated** — use `interceptors.response`. Called after each response, before it's returned; `response.response` gives body access. Throwing here short-circuits the pipeline |
-| `onError` | **Deprecated** — use `interceptors.response`'s rejected handler. Called when a request throws (network error, timeout, or a hook throwing) |
 
 ## 📄 License
 MIT © iyulab
