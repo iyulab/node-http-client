@@ -4,14 +4,43 @@ import type { StreamOptions } from "./types/StreamParser";
 import type { StreamResponse, SseStreamResponse, JsonStreamResponse, TextStreamResponse } from "./types/StreamResponse";
 
 /**
+ * 요청 한 건의 수명 — `HttpClient.send()` 가 넘긴다. 본문을 다 읽으면 `settle()` 로 요청 시간 제한을 풀고,
+ * 읽는 중 끊기면 `aborted()` 로 그것이 취소·시간 초과였는지 가른다.
+ */
+interface ResponseLifecycle {
+  settle(): void;
+  aborted(): boolean;
+  abort(): void;
+}
+
+/**
  * HTTP 응답을 나타내는 클래스입니다.
  * Fetch API의 Response 객체를 래핑하여 다양한 응답 처리 메서드를 제공합니다.
  */
 export class HttpResponse {
   private readonly _response: Response;
+  private readonly _lifecycle?: ResponseLifecycle;
 
-  constructor(response: Response) {
+  constructor(response: Response, lifecycle?: ResponseLifecycle) {
     this._response = response;
+    this._lifecycle = lifecycle;
+  }
+
+  /**
+   * 본문 읽기가 끝나면(성공이든 실패든) 요청 수명을 정리하고, 취소·시간 초과로 끊긴 실패는
+   * `CanceledError` 로 바꾼다 — 헤더까지는 `send()` 가 같은 규칙을 적용한다.
+   */
+  private track<T>(reading: Promise<T>): Promise<T> {
+    return reading.then(
+      (value) => {
+        this._lifecycle?.settle();
+        return value;
+      },
+      (error) => {
+        this._lifecycle?.settle();
+        throw this._lifecycle?.aborted() ? new CanceledError(error) : error;
+      },
+    );
   }
 
   /** 응답 상태가 성공(`2xx`)인지 여부를 반환합니다. */
@@ -51,17 +80,17 @@ export class HttpResponse {
 
   /** 응답 본문을 텍스트 형식으로 반환합니다. */
   public text(): Promise<string> {
-    return this._response.text();
+    return this.track(this._response.text());
   }
 
   /** 응답 본문을 JSON 형식으로 파싱하여 반환합니다. */
   public json<T>(): Promise<T> {
-    return this._response.json() as Promise<T>;
+    return this.track(this._response.json() as Promise<T>);
   }
 
   /** 응답 본문을 ArrayBuffer 형식으로 반환합니다. */
   public arrayBuffer(): Promise<ArrayBuffer> {
-    return this._response.arrayBuffer();
+    return this.track(this._response.arrayBuffer());
   }
 
   /**
@@ -69,7 +98,7 @@ export class HttpResponse {
    * 주로 바이너리 데이터를 다룰 때 유용합니다.
    */
   public async bytes(): Promise<Uint8Array> {
-    const buffer = await this._response.arrayBuffer();
+    const buffer = await this.track(this._response.arrayBuffer());
     return new Uint8Array(buffer);
   }
 
@@ -78,7 +107,7 @@ export class HttpResponse {
    * 파일 다운로드 등에서 활용할 수 있습니다.
    */
   public blob(): Promise<Blob> {
-    return this._response.blob();
+    return this.track(this._response.blob());
   }
 
   /**
@@ -86,7 +115,7 @@ export class HttpResponse {
    * 응답 타입이 `multipart/form-data`인 경우 사용합니다.
    */
   public formData(): Promise<FormData> {
-    return this._response.formData();
+    return this.track(this._response.formData());
   }
 
   /**
@@ -106,11 +135,19 @@ export class HttpResponse {
    * ```
    */
   public async *stream(options?: StreamOptions): AsyncGenerator<StreamResponse> {
+    let idle = false;
     try {
-      const reader = this._response.body?.getReader();
-      if (!reader) {
+      const source = this._response.body?.getReader();
+      if (!source) {
         throw new Error("Response body is not available for streaming.");
       }
+      const reader = options?.idleTimeout
+        ? withIdleTimeout(source, options.idleTimeout, () => {
+            idle = true;
+            if (this._lifecycle) this._lifecycle.abort();
+            else void source.cancel();
+          })
+        : source;
 
       const decoder = options?.decoder || new TextDecoder("utf-8");
       const format = !options || options.format === 'auto'
@@ -119,12 +156,17 @@ export class HttpResponse {
       const parser = createStreamParser({ format, decoder });
       
       yield* parser.parse(reader);
+      if (idle) throw new CanceledError(`Stream idle for more than ${options?.idleTimeout} ms`);
     } catch (error: any) {
-      // CancelToken 접근 불가 → error.name으로 2차 판정
+      if (idle) throw new CanceledError(`Stream idle for more than ${options?.idleTimeout} ms`);
+      if (this._lifecycle?.aborted()) throw new CanceledError(error);
+      // 수명 정보가 없는 응답(직접 만든 HttpResponse) → error.name으로 판정
       if (error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')) {
         throw new CanceledError(error);
       }
       throw error;
+    } finally {
+      this._lifecycle?.settle();
     }
   }
 
@@ -151,4 +193,30 @@ export class HttpResponse {
     yield* this.stream({ format: 'text', decoder }) as AsyncGenerator<TextStreamResponse>;
   }
 
+}
+
+/**
+ * 다음 조각이 `ms` 안에 오지 않으면 `onIdle` 을 부르는 읽기 래퍼. `onIdle` 이 원본 스트림을 끊으면
+ * 대기 중인 `read()` 가 거절되거나 끝나고, 호출자(`stream()`)가 그것을 «유휴 초과» 로 바꿔 던진다.
+ */
+function withIdleTimeout(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  ms: number,
+  onIdle: () => void,
+): ReadableStreamDefaultReader<Uint8Array> {
+  return {
+    get closed() {
+      return reader.closed;
+    },
+    cancel: (reason?: unknown) => reader.cancel(reason),
+    releaseLock: () => reader.releaseLock(),
+    read: async () => {
+      const timer = setTimeout(onIdle, ms);
+      try {
+        return await reader.read();
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+  } as ReadableStreamDefaultReader<Uint8Array>;
 }

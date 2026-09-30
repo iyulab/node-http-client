@@ -225,11 +225,32 @@ export class HttpClient {
     }
 
     // 6. Abort 설정
+    //    ⚠타임아웃은 호출자의 토큰을 취소하지 않는다 — 재사용되는 토큰이 다음 요청까지 죽는다.
+    //    내부 컨트롤러 하나가 «호출자 취소» 와 «시간 초과» 를 함께 받는다.
+    //    ⚠타이머는 응답 헤더에서 풀지 않는다 — 본문을 다 읽을 때(`HttpResponse` 가 `settle`)까지 잰다.
+    //    헤더에서 풀면 본문·스트림이 멈췄을 때 요청이 영원히 끝나지 않는다.
     const token = cancelToken || new CancelToken();
+    const controller = new AbortController();
+    const onCancel = () => controller.abort(token.signal.reason);
+    if (token.signal.aborted) controller.abort(token.signal.reason);
+    else token.signal.addEventListener('abort', onCancel, { once: true });
     const timeout = config.timeout ?? this.timeout;
+    let timedOut = false;
     const timer = timeout
-      ? setTimeout(() => token.cancel(), timeout)
+      ? setTimeout(() => {
+          timedOut = true;
+          controller.abort();
+        }, timeout)
       : null;
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      token.signal.removeEventListener('abort', onCancel);
+    };
+    const aborted = () => token.isCancelled || timedOut;
+    const lifecycle = { settle, aborted, abort: () => controller.abort() };
 
     try {
       // 7. Fetch 요청 + 응답 인터셉터 체인
@@ -242,14 +263,14 @@ export class HttpClient {
         credentials: config.credentials ?? this.credentials,
         mode: config.mode ?? this.mode,
         keepalive: config.keepalive ?? this.keepalive,
-        signal: token.signal,
+        signal: controller.signal,
       })
-        .then((res) => new HttpResponse(res))
+        .then((res) => new HttpResponse(res, lifecycle))
         // CancelToken으로 인한 실패는 인터셉터가 받기 전에 CanceledError로 정규화합니다.
         // 그래야 rejected 핸들러 안에서 `error instanceof CanceledError`로 "취소로 인한 실패"와
         // "일반 네트워크 실패"를 구분해서 재시도 여부를 스스로 판단할 수 있습니다.
         .catch((error) => {
-          throw token.isCancelled ? new CanceledError(error) : error;
+          throw aborted() ? new CanceledError(error) : error;
         });
 
       this.resChain.forEach(({ resolved, rejected }) => {
@@ -283,16 +304,13 @@ export class HttpClient {
         warnDeprecatedHookOnce('onError', "`interceptors.response`'s rejected handler");
         await this.onError({ error });
       }
-      // CancelToken 상태를 1차 판정 기준으로 사용
-      if (token.isCancelled) {
+      // 11. 실패로 끝났으면 여기서 정리한다(성공이면 본문을 다 읽을 때 `HttpResponse` 가 정리한다).
+      settle();
+      // 취소·시간 초과를 1차 판정 기준으로 사용
+      if (aborted()) {
         throw new CanceledError(error);
       }
       throw error;
-    } finally {
-      // 11. 타이머를 정리합니다.
-      if (timer) {
-        clearTimeout(timer);
-      }
     }
   }
 

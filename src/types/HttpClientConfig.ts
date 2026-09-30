@@ -55,8 +55,9 @@ export interface HttpClientConfig {
   cache?: RequestCache;
 
   /**
-   * 요청의 최대 지속 시간(`ms` 단위)입니다.
-   * 설정 시간을 초과하면 요청이 취소됩니다.
+   * 요청의 최대 지속 시간(`ms` 단위)입니다 — 응답 헤더까지가 아니라 **본문을 다 읽을 때까지**를 잽니다.
+   * 초과하면 요청(본문 읽기 포함)이 `CanceledError` 로 끝납니다. 호출자가 넘긴 `CancelToken` 은 취소하지 않습니다.
+   * 오래 흐르는 스트림에는 이 값 대신(또는 함께) `stream({ idleTimeout })` 을 쓰세요.
    */
   timeout?: number;
 

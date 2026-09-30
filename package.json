@@ -1,6 +1,6 @@
 {
   "name": "@iyulab/http-client",
-  "version": "0.10.3",
+  "version": "0.11.0",
   "description": "A simple HTTP client for handling responses.",
   "keywords": [
     "http",

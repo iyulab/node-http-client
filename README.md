@@ -120,6 +120,16 @@ try {
 }
 ```
 
+`timeout` runs until the body has been read, so a response whose body stalls also ends with
+`CanceledError`. A long-running stream can use an idle limit instead of an overall one:
+
+```typescript
+const res = await client.get("/events");
+for await (const ev of res.stream({ format: "sse", idleTimeout: 30_000 })) {
+  // CanceledError if no event arrives for 30 s
+}
+```
+
 ### Interceptors (`client.interceptors`)
 ```typescript
 const client = new HttpClient({ baseUrl: "https://api.example.com" });
@@ -199,7 +209,7 @@ You can configure the client through the `HttpClientConfig` interface:
 | `credentials` | Whether to include credentials (include, omit, same-origin) |
 | `mode` | Request mode (cors, same-origin, etc.) |
 | `cache` | Cache policy settings |
-| `timeout` | Request timeout (in milliseconds) |
+| `timeout` | Request timeout in milliseconds — covers reading the body too, and never cancels a `CancelToken` you passed. For long streams use `stream({ idleTimeout })` |
 | `keepalive` | Whether to keep requests alive during page unload |
 | `onRequest` | **Deprecated** — use `interceptors.request`. Called before each request; can mutate `headers` |
 | `onResponse` | **Deprecated** — use `interceptors.response`. Called after each response, before it's returned; `response.response` gives body access. Throwing here short-circuits the pipeline |

@@ -14,6 +14,12 @@ export interface StreamOptions {
    * 텍스트 디코더입니다. 기본값은 UTF-8 디코더입니다. 
    */
   decoder?: TextDecoder;
+
+  /**
+   * 다음 조각이 이 시간(`ms`) 안에 오지 않으면 스트림을 끊고 `CanceledError` 를 던집니다.
+   * 요청 전체 시간(`timeout`)과 달리, 계속 흐르는 스트림은 길어도 끊지 않고 멈춘 스트림만 끊습니다.
+   */
+  idleTimeout?: number;
 }
 
 /** 스트림 파서를 나타내는 인터페이스입니다.*/

@@ -11,7 +11,7 @@ All fields are optional. Used at construction and can be overridden per-request.
 | `credentials` | `'include' \| 'omit' \| 'same-origin'` | Cookie/auth credential policy |
 | `mode` | `'cors' \| 'same-origin' \| 'no-cors' \| 'navigate'` | CORS mode |
 | `cache` | `RequestCache` | Browser cache policy (`'default'`, `'no-store'`, etc.) |
-| `timeout` | `number` | Max request duration in ms; triggers `CanceledError` |
+| `timeout` | `number` | Max request duration in ms, **including reading the body** (`json()`, `text()`, `stream()`…); triggers `CanceledError`. Does not cancel a `CancelToken` you passed |
 | `keepalive` | `boolean` | Keep request alive during page unload (not effective for `upload`) |
 | `onRequest` | `(req: RequestHookInfo, headers: Headers) => void \| Promise<void>` | **Deprecated** — use `interceptors.request`. Called before each request; mutate `headers` to inject auth etc. |
 | `onResponse` | `(res: ResponseHookInfo) => void \| Promise<void>` | **Deprecated** — use `interceptors.response`. Called after each response, before it's returned. `res.response` gives body access (`.json()`/`.text()`/...); throwing here short-circuits the pipeline — `send()` rejects with that error instead of returning a response, and `onError` still runs |
@@ -141,7 +141,7 @@ class HttpResponse {
   bytes(): Promise<Uint8Array>
   formData(): Promise<FormData>
 
-  stream(options: StreamOptions): AsyncGenerator<StreamResponse>
+  stream(options: StreamOptions): AsyncGenerator<StreamResponse>  // { format, decoder?, idleTimeout? }
   streamAsSse(): AsyncGenerator<SseStreamResponse>
   streamAsJson(): AsyncGenerator<JsonStreamResponse>
   streamAsText(): AsyncGenerator<TextStreamResponse>
@@ -165,7 +165,8 @@ class CancelToken {
 Extends `Error`. `name` is always `"CanceledError"`.  
 Thrown when:
 - `token.cancel()` is called explicitly
-- `timeout` on `HttpClient` / `HttpRequest` is exceeded
+- `timeout` on `HttpClient` / `HttpRequest` is exceeded — while waiting for the response or while reading its body
+- `stream({ idleTimeout })` sees no chunk within that time
 
 ```ts
 try {

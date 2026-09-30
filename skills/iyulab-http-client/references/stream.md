@@ -76,6 +76,19 @@ for await (const item of res.streamAsSse()) {
 }
 ```
 
+## Timeouts on a Stream
+
+`timeout` (client or request) covers the whole request, including reading the body, so it also ends a
+long stream once the time is up. For a stream that may legitimately run long, set `idleTimeout`
+instead: the stream ends with `CanceledError` only when no chunk arrives within that time.
+
+```ts
+const res = await client.get('/chat/stream');           // no overall timeout
+for await (const ev of res.stream({ format: 'sse', idleTimeout: 30_000 })) {
+  // ends with CanceledError if the server goes quiet for 30 s
+}
+```
+
 ## StreamResponse Types
 
 ```ts

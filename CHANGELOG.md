@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.11.0] - 2026-09-30
+
+### Changed
+- **`timeout` now covers reading the body, not only waiting for the response headers.** The timer
+  stopped as soon as the headers arrived, so a response whose body or event stream stalled never
+  ended. `json()`, `text()`, `blob()`, `arrayBuffer()`, `bytes()`, `formData()` and `stream()` now end
+  with `CanceledError` when the time runs out. If you use `timeout` together with long-running streams,
+  switch those requests to `idleTimeout` (below) or raise their `timeout`.
+
+### Added
+- **`stream({ idleTimeout })`** — ends the stream with `CanceledError` when no chunk arrives within the
+  given milliseconds. A stream that keeps flowing is never cut, however long it runs.
+
+### Fixed
+- A timeout no longer cancels the `CancelToken` you passed. The token was cancelled on timeout, so
+  reusing it for the next request failed immediately.
+
 ## [0.10.3] - 2026-09-28
 
 ### Fixed
