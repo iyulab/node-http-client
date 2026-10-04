@@ -4,7 +4,6 @@ description: Browser HTTP client for REST calls, file upload/download, and strea
 license: MIT
 metadata:
   author: iyulab
-  version: "0.10.0"
 ---
 
 # @iyulab/http-client
