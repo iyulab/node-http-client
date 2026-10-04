@@ -1,3 +1,4 @@
+import type { CancelToken } from "../CancelToken";
 import type { HttpClientConfig } from "./HttpClientConfig";
 
 /**
@@ -43,6 +44,26 @@ export interface HttpRequest extends HttpClientConfig {
    * 그대로 전달됩니다(`internals/mime-helpers.ts`의 `guessMimeType` 참고).
    */
   body?: unknown;
+
+  /**
+   * 이 요청을 취소할 표준 신호입니다(`fetch` 의 `signal` 과 같은 뜻). 취소되면 `CanceledError` 로
+   * 거부되고, 그 원인은 `signal.reason` 입니다. `CancelToken` 과 함께 줄 수 있으며 어느 쪽이든
+   * 먼저 취소되면 요청이 끝납니다.
+   */
+  signal?: AbortSignal;
+}
+
+/**
+ * 동사 메서드(`get`·`post` 등)의 요청 단위 옵션입니다. 마지막 인자로 `CancelToken` 대신 줄 수
+ * 있습니다 — 토큰만 넘기던 기존 호출은 그대로 동작합니다.
+ */
+export interface RequestOptions {
+  /** 이 요청에만 붙일 헤더입니다(클라이언트 기본 헤더 위에 덮어씁니다). 예: `If-Match`. */
+  headers?: HeadersInit;
+  /** 이 요청을 취소할 표준 신호입니다(`HttpRequest.signal` 참고). */
+  signal?: AbortSignal;
+  /** 기존 취소 토큰입니다. */
+  cancelToken?: CancelToken;
 }
 
 /**

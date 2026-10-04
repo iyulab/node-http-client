@@ -109,6 +109,10 @@ const token = new CancelToken();
 
 setTimeout(() => token.cancel("User cancelled"), 2000);
 
+// Or a standard AbortSignal, together with per-request headers:
+const ac = new AbortController();
+await client.patch("/items/1", partial, { signal: ac.signal, headers: { "If-Match": etag } });
+
 try {
   await client.get("/slow-endpoint", token);
 } catch (error: any) {

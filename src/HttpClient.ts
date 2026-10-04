@@ -1,4 +1,4 @@
-import type { HttpRequest, HttpUploadRequest, HttpDownloadRequest } from "./types/HttpRequest";
+import type { HttpRequest, HttpUploadRequest, HttpDownloadRequest, RequestOptions } from "./types/HttpRequest";
 import type { FileUploadResponse } from "./types/FileUploadResponse";
 import type { HttpClientConfig } from "./types/HttpClientConfig";
 import type { RequestConfig, RequestInterceptors, ResponseInterceptors } from "./types/Interceptors";
@@ -18,6 +18,22 @@ type WithRawQuery = HttpRequest & { [RAW_QUERY]?: string };
 
 function withRawQuery(request: HttpRequest, rawQuery: string | undefined): HttpRequest {
   return rawQuery ? Object.assign(request, { [RAW_QUERY]: rawQuery }) : request;
+}
+
+/**
+ * 동사 메서드의 마지막 인자 — 종전의 `CancelToken` 이거나 `RequestOptions` 다. 요청에 싣을 헤더·신호와
+ * `send()` 에 넘길 토큰으로 가른다.
+ */
+function splitOptions(options: CancelToken | RequestOptions | undefined): {
+  extra: Pick<HttpRequest, 'headers' | 'signal'>;
+  cancelToken?: CancelToken;
+} {
+  if (!options) return { extra: {} };
+  if (options instanceof CancelToken) return { extra: {}, cancelToken: options };
+  const extra: Pick<HttpRequest, 'headers' | 'signal'> = {};
+  if (options.headers) extra.headers = options.headers;
+  if (options.signal) extra.signal = options.signal;
+  return { extra, cancelToken: options.cancelToken };
 }
 
 /**
@@ -101,49 +117,55 @@ export class HttpClient {
    * HEAD 요청을 보내 리소스의 존재 여부나 메타데이터를 확인합니다.
    * 본문 없이 헤더만 반환됩니다.
    */
-  public async head(url: string, cancelToken?: CancelToken): Promise<HttpResponse> {
+  public async head(url: string, options?: CancelToken | RequestOptions): Promise<HttpResponse> {
     const { baseUrl, path, query, rawQuery } = parseUrl(url, this.baseUrl);
-    return this.send(withRawQuery({ method: 'HEAD', baseUrl, path, query }, rawQuery), cancelToken);
+    const { extra, cancelToken } = splitOptions(options);
+    return this.send(withRawQuery({ method: 'HEAD', baseUrl, path, query, ...extra }, rawQuery), cancelToken);
   }
 
   /**
    * GET 요청을 보내 데이터를 조회합니다.
    */
-  public async get(url: string, cancelToken?: CancelToken): Promise<HttpResponse> {
+  public async get(url: string, options?: CancelToken | RequestOptions): Promise<HttpResponse> {
     const { baseUrl, path, query, rawQuery } = parseUrl(url, this.baseUrl);
-    return this.send(withRawQuery({ method: 'GET', baseUrl, path, query }, rawQuery), cancelToken);
+    const { extra, cancelToken } = splitOptions(options);
+    return this.send(withRawQuery({ method: 'GET', baseUrl, path, query, ...extra }, rawQuery), cancelToken);
   }
 
   /**
    * POST 요청을 보내 서버에 리소스를 생성하거나 데이터를 전송합니다.
    */
-  public async post(url: string, body: unknown, cancelToken?: CancelToken): Promise<HttpResponse> {
+  public async post(url: string, body: unknown, options?: CancelToken | RequestOptions): Promise<HttpResponse> {
     const { baseUrl, path, query, rawQuery } = parseUrl(url, this.baseUrl);
-    return this.send(withRawQuery({ method: 'POST', baseUrl, path, query, body }, rawQuery), cancelToken);
+    const { extra, cancelToken } = splitOptions(options);
+    return this.send(withRawQuery({ method: 'POST', baseUrl, path, query, body, ...extra }, rawQuery), cancelToken);
   }
 
   /**
    * PUT 요청을 보내 서버 리소스를 전체 교체하거나 생성합니다.
    */
-  public async put(url: string, body: unknown, cancelToken?: CancelToken): Promise<HttpResponse> {
+  public async put(url: string, body: unknown, options?: CancelToken | RequestOptions): Promise<HttpResponse> {
     const { baseUrl, path, query, rawQuery } = parseUrl(url, this.baseUrl);
-    return this.send(withRawQuery({ method: 'PUT', baseUrl, path, query, body }, rawQuery), cancelToken);
+    const { extra, cancelToken } = splitOptions(options);
+    return this.send(withRawQuery({ method: 'PUT', baseUrl, path, query, body, ...extra }, rawQuery), cancelToken);
   }
 
   /**
    * PATCH 요청을 보내 서버 리소스의 일부를 수정합니다.
    */
-  public async patch(url: string, body: unknown, cancelToken?: CancelToken): Promise<HttpResponse> {
+  public async patch(url: string, body: unknown, options?: CancelToken | RequestOptions): Promise<HttpResponse> {
     const { baseUrl, path, query, rawQuery } = parseUrl(url, this.baseUrl);
-    return this.send(withRawQuery({ method: 'PATCH', baseUrl, path, query, body }, rawQuery), cancelToken);
+    const { extra, cancelToken } = splitOptions(options);
+    return this.send(withRawQuery({ method: 'PATCH', baseUrl, path, query, body, ...extra }, rawQuery), cancelToken);
   }
 
   /**
    * DELETE 요청을 보내 서버 리소스를 삭제합니다.
    */
-  public async delete(url: string, cancelToken?: CancelToken): Promise<HttpResponse> {
+  public async delete(url: string, options?: CancelToken | RequestOptions): Promise<HttpResponse> {
     const { baseUrl, path, query, rawQuery } = parseUrl(url, this.baseUrl);
-    return this.send(withRawQuery({ method: 'DELETE', baseUrl, path, query }, rawQuery), cancelToken);
+    const { extra, cancelToken } = splitOptions(options);
+    return this.send(withRawQuery({ method: 'DELETE', baseUrl, path, query, ...extra }, rawQuery), cancelToken);
   }
 
   /**
@@ -203,6 +225,11 @@ export class HttpClient {
     const onCancel = () => controller.abort(token.signal.reason);
     if (token.signal.aborted) controller.abort(token.signal.reason);
     else token.signal.addEventListener('abort', onCancel, { once: true });
+    //    요청 단위 표준 신호(`request.signal`)도 같은 컨트롤러로 모은다 — 원인은 그 신호의 `reason` 이다.
+    const external = request.signal;
+    const onExternal = () => controller.abort(external?.reason);
+    if (external?.aborted) controller.abort(external.reason);
+    else external?.addEventListener('abort', onExternal, { once: true });
     const timeout = config.timeout ?? this.timeout;
     let timedOut = false;
     const timer = timeout
@@ -217,8 +244,9 @@ export class HttpClient {
       settled = true;
       if (timer) clearTimeout(timer);
       token.signal.removeEventListener('abort', onCancel);
+      external?.removeEventListener('abort', onExternal);
     };
-    const aborted = () => token.isCancelled || timedOut;
+    const aborted = () => token.isCancelled || timedOut || !!external?.aborted;
     const lifecycle = { settle, aborted, abort: () => controller.abort() };
 
     try {

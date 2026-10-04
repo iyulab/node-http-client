@@ -24,18 +24,32 @@ class HttpClient {
 
   readonly interceptors: { request: RequestInterceptors; response: ResponseInterceptors }
 
-  head(url: string, token?: CancelToken): Promise<HttpResponse>
-  get(url: string, token?: CancelToken): Promise<HttpResponse>
-  post(url: string, body: unknown, token?: CancelToken): Promise<HttpResponse>
-  put(url: string, body: unknown, token?: CancelToken): Promise<HttpResponse>
-  patch(url: string, body: unknown, token?: CancelToken): Promise<HttpResponse>
-  delete(url: string, token?: CancelToken): Promise<HttpResponse>
+  head(url: string, options?: CancelToken | RequestOptions): Promise<HttpResponse>
+  get(url: string, options?: CancelToken | RequestOptions): Promise<HttpResponse>
+  post(url: string, body: unknown, options?: CancelToken | RequestOptions): Promise<HttpResponse>
+  put(url: string, body: unknown, options?: CancelToken | RequestOptions): Promise<HttpResponse>
+  patch(url: string, body: unknown, options?: CancelToken | RequestOptions): Promise<HttpResponse>
+  delete(url: string, options?: CancelToken | RequestOptions): Promise<HttpResponse>
 
   send(request: HttpRequest, token?: CancelToken): Promise<HttpResponse>
   upload(request: HttpUploadRequest, token?: CancelToken): AsyncGenerator<FileUploadResponse>
   download(request: HttpDownloadRequest): void
 }
 ```
+
+### `RequestOptions` — per-request headers and an `AbortSignal`
+
+```ts
+interface RequestOptions {
+  headers?: HeadersInit       // this request only, over the client's default headers (e.g. If-Match)
+  signal?: AbortSignal        // standard cancellation, like fetch's signal
+  cancelToken?: CancelToken   // the existing token
+}
+```
+
+Pass it where a `CancelToken` used to go; a bare token still works. An aborted `signal` rejects the
+request with `CanceledError` (the reason is `signal.reason`). `send(request)` takes the same
+`signal` on `HttpRequest`.
 
 ## Interceptors (`client.interceptors`)
 
@@ -174,10 +188,11 @@ interface HttpRequest extends HttpClientConfig {
   path?: string;
   query?: Record<string, string | string[]>;
   body?: unknown;
+  signal?: AbortSignal;   // standard cancellation for this request
 }
 ```
 
-Inherits `baseUrl`, `headers` (`HeadersInit` — plain object, `Headers` instance, or tuple array all accepted; request-level headers override instance defaults per key), `credentials`, `mode`, `cache`, `timeout`, `keepalive` from `HttpClientConfig`. `CancelToken` is a separate argument to `send()`/`get()`/etc., not a field on the request object.
+Inherits `baseUrl`, `headers` (`HeadersInit` — plain object, `Headers` instance, or tuple array all accepted; request-level headers override instance defaults per key), `credentials`, `mode`, `cache`, `timeout`, `keepalive` from `HttpClientConfig`. `CancelToken` is a separate argument to `send()`/`get()`/etc., not a field on the request object; the standard `signal` is a field.
 
 ## HttpDownloadRequest
 

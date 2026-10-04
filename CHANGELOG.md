@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Per-request options on the verb methods** — `get`, `head`, `post`, `put`, `patch` and `delete` take
+  `{ headers, signal, cancelToken }` where they took a `CancelToken`: headers for this request only
+  (e.g. `If-Match`) and a standard `AbortSignal`. An aborted signal rejects with `CanceledError`, the
+  same as a cancelled token. Passing a bare `CancelToken` works as before. `HttpRequest` (for
+  `send()`) gains the same `signal`.
+
 ## [0.13.0] - 2026-09-30
 
 ### Removed

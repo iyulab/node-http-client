@@ -70,7 +70,8 @@ await client.delete('/items/1');                 // DELETE
 await client.head('/items/1');                   // HEAD
 ```
 
-All methods accept an optional `CancelToken` as the last argument and return `Promise<HttpResponse>`.
+All methods return `Promise<HttpResponse>`. The last argument is an optional `CancelToken`, or
+`{ headers, signal, cancelToken }` for per-request headers and a standard `AbortSignal`.
 
 ### HttpResponse — body parsing
 
