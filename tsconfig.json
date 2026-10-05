@@ -36,6 +36,8 @@
     "noEmit": true,
 
     // 기타 옵션
+    // skipLibCheck 를 켜지 않는다 — 의도한 배치다. 상류(vitest·vite 등)의 공개 선언이 자립적이지 않으면
+    // 이 패키지의 typecheck 가 먼저 깨져 알린다(두 번 울렸다). 루트 test:scripts 가 이 설정을 잰다.
     "useDefineForClassFields": false,
     "preserveSymlinks": true
   },
