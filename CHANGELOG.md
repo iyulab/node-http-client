@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.1] - 2026-10-06
+
+### Documentation
+
+- **Quick Start** — a first page that calls the page's own origin and prints the response, so it runs
+  as written before you point `baseUrl` at your API. Notes that non-2xx responses resolve and only
+  network failures, timeouts and cancellation reject.
+
 ## [0.14.0] - 2026-10-04
 
 ### Added

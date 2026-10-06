@@ -11,6 +11,30 @@ Supports general requests, file upload/download, and multiple stream response fo
 npm install @iyulab/http-client
 ```
 
+## Quick Start
+
+A first page that calls a server and shows the result (Vite — `index.html` loads `src/main.ts` as a module). It asks
+the page's own origin, so it runs as-is; point `baseUrl` at your API next.
+
+```ts
+// src/main.ts
+import { HttpClient, CanceledError } from "@iyulab/http-client";
+
+const client = new HttpClient({ baseUrl: window.location.origin, timeout: 10_000 });
+const output = document.body.appendChild(document.createElement("pre"));
+
+try {
+  const res = await client.get("/?from=quick-start");
+  const body = await res.text();
+  output.textContent = `GET / → ${res.status} ${res.ok ? "OK" : res.statusText} (${body.length} chars)`;
+} catch (error) {
+  output.textContent = error instanceof CanceledError ? "Timed out or cancelled" : `Failed: ${String(error)}`;
+}
+```
+
+Non-2xx responses resolve normally — check `res.ok` / `res.status`. Only network failures, timeouts and
+cancellation reject.
+
 ## 🤖 Skills Usage
 
 This package includes an [Agent Skill](https://agentskills.io/) that helps AI coding agents understand and use this library.
