@@ -237,7 +237,7 @@ You can configure the client through the `HttpClientConfig` interface:
 
 | Option | Description |
 | ------ | ----------- |
-| `baseUrl` | Base URL to be applied to all requests |
+| `baseUrl` | Base URL to be applied to all requests. An absolute URL (`'https://api.example.com'`), or — in a browser — a relative one resolved against the page's origin: `'/api'`, or `''` / `'/'` for a same-origin API with no prefix |
 | `headers` | Request headers (e.g. Authorization, Content-Type, etc.) |
 | `credentials` | Whether to include credentials (include, omit, same-origin) |
 | `mode` | Request mode (cors, same-origin, etc.) |

@@ -46,10 +46,15 @@ function sameQuery(a: Record<string, string | string[]>, b: Record<string, strin
  * @param parts baseUrl · path · query · rawQuery
  * @returns 완성된 URL 객체
  */
+/** baseUrl 을 주지 않았을 때 — 무엇을 주면 되는지 말한다(`''`·`'/'` 는 페이지 출처). */
+const MISSING_BASE =
+  "A relative URL needs a baseUrl — set an absolute URL ('https://api.example.com'), " +
+  "or '' / '/' for the page's origin (browser only).";
+
 export function buildUrl({ baseUrl, path, query, rawQuery }: UrlParts): URL {
-  // 1. base URL이 없으면 오류를 발생시킵니다.
-  if (!baseUrl) {
-    throw new Error("Base URL is required for building the request URL.");
+  // 1. base URL이 없으면 오류 — `''` 는 «없음» 이 아니라 «접두 없음»(페이지 출처 기준)이다.
+  if (baseUrl == null) {
+    throw new Error(MISSING_BASE);
   }
 
   // 2. URL을 생성합니다.
@@ -114,8 +119,9 @@ export function parseUrl(url: string, baseUrl?: string): UrlParts {
 
     return result;
   } else {
-    if (!baseUrl) {
-      throw new Error("Base URL is required for relative URLs.");
+    // `''` 는 «접두 없음» — 같은 출처 API(SPA 와 API 를 한 출처가 낸다)의 가장 흔한 배치다. 없는 것(undefined)만 막는다.
+    if (baseUrl == null) {
+      throw new Error(MISSING_BASE);
     }
 
     // 경로와 쿼리 문자열 분리 — 첫 `?` 에서만 자른다(쿼리 값 안의 `?` 는 쿼리의 일부다).

@@ -8,7 +8,7 @@ describe('buildUrl', () => {
   });
 
   it('baseUrl이 없으면 에러를 던진다', () => {
-    expect(() => buildUrl({})).toThrow('Base URL is required');
+    expect(() => buildUrl({})).toThrow('A relative URL needs a baseUrl');
   });
 
   // 슬래시 조합 테스트
@@ -95,6 +95,26 @@ describe('buildUrl', () => {
       });
     });
 
+    it("baseUrl '' 은 «접두 없음» — 페이지 출처 기준(같은 출처 API)", () => {
+      withLocation(mockOrigin, () => {
+        const url = buildUrl({ baseUrl: '', path: '/api/drawings', query: { k: '1' } });
+        expect(url.toString()).toBe('http://localhost:3000/api/drawings?k=1');
+        const parts = parseUrl('/api/drawings?k=1', '');
+        expect(buildUrl(parts).toString()).toBe('http://localhost:3000/api/drawings?k=1');
+      });
+    });
+
+    it("NEGATIVE — 브라우저 밖에서 baseUrl '' 은 상대 base 와 같은 오류(페이지 출처가 없다)", () => {
+      const original = globalThis.location;
+      // @ts-ignore
+      delete globalThis.location;
+      try {
+        expect(() => buildUrl({ baseUrl: '', path: '/api' })).toThrow('Relative base URL requires a browser environment');
+      } finally {
+        globalThis.location = original;
+      }
+    });
+
     it('location이 없는 환경에서 상대 경로를 사용하면 에러를 던진다', () => {
       const original = globalThis.location;
       // @ts-ignore
@@ -160,7 +180,7 @@ describe('parseUrl', () => {
   });
 
   it('상대 URL에 defaultUrl이 없으면 에러를 던진다', () => {
-    expect(() => parseUrl('/users')).toThrow('Base URL is required');
+    expect(() => parseUrl('/users')).toThrow("'' / '/' for the page's origin");
   });
 
   it('상대 경로의 중복 쿼리 파라미터를 배열로 처리한다', () => {

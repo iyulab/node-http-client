@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.14.2] - 2026-10-07
+
+### Fixed
+
+- **`baseUrl: ''` means "no prefix, the page's origin"** — the most common same-origin layout (the server that serves
+  the app serves the API). An empty string was treated as no base at all and every relative request threw "Base URL is
+  required", while `'/'` already worked. Outside a browser it fails like any relative base. The error for a missing
+  base now says what to pass instead of "required"; README documents relative bases.
+
 ## [0.14.1] - 2026-10-06
 
 ### Documentation
