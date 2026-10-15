@@ -51,7 +51,7 @@ export class CancelToken {
         try {
           callback(reason);
         } catch (error) {
-          console.error("CancelToken callback error:", error);
+          console.error("[@iyulab/http-client] CancelToken: a cancel callback threw:", error);
         }
       }
     }

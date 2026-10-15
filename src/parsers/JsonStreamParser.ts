@@ -50,7 +50,7 @@ export class JsonStreamParser implements StreamParser<JsonStreamResponse> {
           data: jsonStr
         };
       } catch(error) {
-        console.error('[JsonStreamParser] Failed to parse remaining JSON buffer:', {
+        console.error('[@iyulab/http-client] JsonStreamParser: failed to parse remaining JSON buffer:', {
           buffer: buffer.substring(0, 200),
           error: error instanceof Error ? error.message : String(error)
         });
@@ -123,7 +123,7 @@ export class JsonStreamParser implements StreamParser<JsonStreamResponse> {
           JSON.parse(jsonStr);
           objects.push(jsonStr);
         } catch(error) {
-          console.error('[JsonStreamParser] Failed to parse JSON object:', {
+          console.error('[@iyulab/http-client] JsonStreamParser: failed to parse JSON object:', {
             json: jsonStr.substring(0, 200),
             error: error instanceof Error ? error.message : String(error)
           });
