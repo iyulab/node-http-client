@@ -70,6 +70,17 @@ export interface FileUploadFailureResponse {
   status?: number;
 
   /**
+   * 서버가 보낸 응답 헤더입니다. 2xx 가 아닌 응답을 받았을 때만 있습니다.
+   */
+  headers?: Record<string, string>;
+
+  /**
+   * 서버가 보낸 응답 본문입니다(`success` 의 `body` 와 같은 모양). 2xx 가 아닌 응답을 받았을 때만 있으며,
+   * 서버가 오류 사유를 JSON 으로 실어 보냈다면 여기서 읽습니다.
+   */
+  body?: any;
+
+  /**
    * 실패 원인을 설명하는 메시지입니다.
    */
   message?: string;

@@ -422,7 +422,8 @@ export class HttpClient {
       if (status >= 200 && status < 300) {
         publish({ type: 'success', status, headers, body });
       } else {
-        publish({ type: 'failure', status, message: `Upload failed with status ${status}` });
+        // 서버가 비2xx 에 실어 보낸 사유(JSON 의 오류 문장 등)를 화면이 읽을 수 있게 본문 · 헤더를 싣는다 — `success` 와 같은 모양.
+        publish({ type: 'failure', status, headers, body, message: `Upload failed with status ${status}` });
       }
     };
 

@@ -88,7 +88,9 @@ for await (const response of client.upload({
   } else if (response.type === "success") {
     console.log("Upload success:", response.status);
   } else {
-    console.error("Upload failed:", response.message);
+    // `status`, `headers` and `body` are set when the server answered with a non-2xx status
+    // (read the reason the server sent from `body`); a network failure has only `message`.
+    console.error("Upload failed:", response.status, response.body ?? response.message);
   }
 }
 ```

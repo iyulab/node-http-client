@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`upload()` keeps the server's answer on a non-2xx response.** The `failure` event carried only the status and
+  «Upload failed with status N», so the reason a server sent with a 400 or 413 (a JSON error, for instance) could not be
+  read. It now also has `headers` and `body`, in the same shape as the `success` event's. `message` is unchanged.
+  Network failures and timeouts still carry only `message`.
+
 ### Changed
 
 - Console diagnostics begin with `[@iyulab/http-client]`, so a message in a console shared by several packages says which one wrote it (several also say what to do next).
