@@ -1,7 +1,7 @@
 {
   "name": "@iyulab/http-client",
   "version": "0.14.2",
-  "description": "A simple HTTP client for handling responses.",
+  "description": "HTTP client with typed responses and errors, upload and streaming",
   "keywords": [
     "http",
     "https",
