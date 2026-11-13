@@ -105,7 +105,12 @@ client.interceptors.response.use(async (res, config) => {
 | `URLSearchParams` | `application/x-www-form-urlencoded;charset=UTF-8` |
 | `FormData`, `ReadableStream` | Browser-managed (not set by the client) |
 
-Explicit `Content-Type` in headers always takes precedence.
+An explicit `Content-Type` in the headers takes precedence, with one exception: a `FormData` body never carries one.
+Its `Content-Type` includes a `boundary` that only the platform can choose, so a value from the instance default headers,
+the request headers or an interceptor is dropped. Only a plain object or array is serialized as JSON — a `Blob`,
+`ArrayBuffer`, `URLSearchParams` or `FormData` is sent as itself even when the header says `application/json`.
+A default `Content-Type: application/json` on the instance is therefore safe but unnecessary: object bodies are
+detected as JSON anyway.
 
 ## HttpResponse
 

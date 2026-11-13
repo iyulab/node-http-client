@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **A default `Content-Type: application/json` no longer breaks a `FormData` upload or turns a body into `{}`.** With that header on the
+  instance (a common habit when moving from another client), `send()` ran every object body through `JSON.stringify`, so a
+  `FormData`, `Blob` or `URLSearchParams` went out as the text `{}` — files and fields silently lost, and the header
+  claimed JSON. `upload()` set the same header on the request, so the server received multipart declared as JSON (no boundary)
+  and answered 415. JSON serialization now follows the kind of body: only a plain object or array is serialized, and every
+  other body is sent as itself. A `FormData` body never carries a `Content-Type` from the caller — the instance default,
+  the request headers and a request interceptor are all ignored for it, as the platform has to choose the multipart
+  boundary — and `upload()` does not set `Content-Type` at all. An explicit `Content-Type` on any other body is still honored.
+
 ## [0.15.0] - 2026-11-11
 
 ### Added

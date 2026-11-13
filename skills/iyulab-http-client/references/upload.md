@@ -27,6 +27,9 @@ client.upload(request: HttpUploadRequest, cancelToken?: CancelToken): AsyncGener
 | `FormData` | Sent as-is |
 | `Blob` | `FormData` with field `file` |
 
+The body is always multipart, so `upload()` never sets `Content-Type` — a value from the instance default headers or the
+request headers is not sent; the browser adds it together with the boundary. Every other header is sent.
+
 ## Response Types
 
 ```ts

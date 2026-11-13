@@ -6,7 +6,7 @@ import { HttpResponse } from "./HttpResponse";
 import { CancelToken } from "./CancelToken";
 import { CanceledError } from "./CanceledError";
 import { buildUrl, parseUrl } from "./internals/url-helpers";
-import { guessMimeType } from "./internals/mime-helpers";
+import { guessMimeType, isJsonBody } from "./internals/mime-helpers";
 import { InterceptorChain } from "./internals/InterceptorChain";
 
 /**
@@ -192,9 +192,9 @@ export class HttpClient {
     // 2. Body 설정 (Content-Type에 따라 자동 직렬화)
     // guessMimeType이 이미 BodyInit 호환 타입(Blob/FormData/URLSearchParams/ReadableStream/문자열/객체)만
     // 통과시켰으므로, 여기서는 그 결과를 신뢰하고 BodyInit으로 좁힙니다.
+    // JSON 직렬화는 헤더가 아니라 본문의 종류로 정한다 — FormData/Blob/URLSearchParams 는 JSON 헤더가 있어도 그대로 보낸다.
     let body: BodyInit | undefined = request.body as BodyInit | undefined;
-    if (headers.get("Content-Type")?.includes("application/json")
-      && typeof body === "object" && body !== null) {
+    if (headers.get("Content-Type")?.includes("application/json") && isJsonBody(body)) {
       body = JSON.stringify(body);
     }
 
@@ -205,6 +205,10 @@ export class HttpClient {
       reqPromise = reqPromise.then(resolved, rejected);
     });
     config = await reqPromise;
+
+    // FormData 의 Content-Type 은 boundary 때문에 플랫폼만 정할 수 있다 — 인스턴스 기본값 · 요청별 헤더 · 인터셉터가 준 값은
+    // 어디서 왔든 버린다(인터셉터가 본문을 FormData 로 바꿨을 수 있어 체인 뒤에서 한다).
+    if (config.body instanceof FormData) config.headers.delete("Content-Type");
 
     // 4. URL 생성 (인터셉터가 수정한 path/query/baseUrl 반영). 쿼리를 인터셉터가 건드리지 않았으면
     //    호출자가 준 원문 쿼리를 그대로 쓴다(`buildUrl` 이 원문과 `query` 를 대조한다).
@@ -353,7 +357,10 @@ export class HttpClient {
       xhr.withCredentials = credentials === 'include';
     }
 
+    // 본문은 아래에서 항상 FormData 로 만든다 — Content-Type 은 boundary 와 함께 브라우저만 정할 수 있으므로
+    // 호출자가 준 값(인스턴스 기본 JSON 헤더 포함)은 싣지 않는다.
     config.headers.forEach((value, key) => {
+      if (key.toLowerCase() === "content-type") return;
       xhr.setRequestHeader(key, value);
     });
 
